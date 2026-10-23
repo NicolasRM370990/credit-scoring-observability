@@ -1,0 +1,60 @@
+# ============================================================
+# credit-scoring-observability
+# ============================================================
+
+# --- Dados (NUNCA versionar: licença, privacidade e tamanho) ---
+# O data/README.md explica como baixar e traz o SHA-256 do arquivo.
+data/*
+!data/README.md
+
+# --- Artefatos gerados pelo pipeline ---
+# Evidências pequenas e selecionadas vão para reports/ e docs/evidence/ (versionados).
+artifacts/
+
+# --- MLflow local ---
+mlflow/
+mlruns/
+
+# --- Modelos ---
+# Se o .joblib for pequeno e a equipe quiser versionar, apague esta linha.
+# O metadata (models/*.json) continua versionado.
+models/*.joblib
+
+# --- Segredos e credenciais ---
+.env
+.env.*
+kaggle.json
+*.pem
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Ambientes virtuais ---
+.venv/
+venv/
+env/
+
+# --- Testes, lint e cobertura ---
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- IDEs ---
+.vscode/
+.idea/
+
+# --- Sistema operacional ---
+.DS_Store
+Thumbs.db
+desktop.ini
