@@ -2,7 +2,7 @@
 
 Tech Challenge Fase 4 (Pós Tech MLET): camada de **sustentação e confiabilidade** para um modelo de Credit Scoring, com contratos de qualidade de dados, simulação e detecção de drift, observabilidade e governança (LGPD).
 
-> **Status:** em desenvolvimento. O plano de execução do time está em [`docs/PLANO_EXECUCAO.md`](docs/PLANO_EXECUCAO.md) e os contratos de integração em [`docs/contracts.md`](docs/contracts.md).
+> **Status:** em desenvolvimento. O plano de execução do time está em [`docs/PLANO_EXECUCAO.md`](docs/PLANO_TRABALHO.md) e os contratos de integração em [`docs/contracts.md`](docs/contracts.md).
 
 ## Início rápido
 
