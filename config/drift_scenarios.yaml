@@ -1,0 +1,29 @@
+version: 1
+seed: 42
+batch_size: 3000        
+scenarios:
+  no_drift:
+    description: controle, amostra do pool sem alteração
+    batches: 4
+    transformations: []
+  covariate_moderate:
+    description: renda nominal inflada e utilização de crédito maior
+    batches: 4
+    ramp: linear          
+    transformations:
+      - {feature: monthly_income,        op: scale,     factor: 1.25}
+      - {feature: revolving_utilization, op: shift_add, value: 0.15, clip: [0, 3]}
+  covariate_severe:
+    description: três variáveis alteradas, intensidade progressiva
+    batches: 6
+    ramp: linear
+    transformations:
+      - {feature: monthly_income,        op: scale,     factor: 1.40}
+      - {feature: revolving_utilization, op: shift_add, value: 0.30, clip: [0, 3]}
+      - {feature: debt_ratio,            op: scale,     factor: 1.60}
+  concept_drift:
+    description: covariáveis do pool, rótulos sintéticos com relação X->y alterada (P1, E2-07a)
+    batches: 4
+    ramp: linear
+    transformations: []
+    labels: {mode: synthetic, logit_offset: 0.8}

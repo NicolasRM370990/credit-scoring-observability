@@ -1,0 +1,44 @@
+version: "1.0.0"
+
+# Regras BLOCK: lote com qualquer falha é rejeitado.
+block_rules:
+  R01_AGE_RANGE:
+    column: age
+    min: 18
+    max: 110            
+  R02_INCOME:
+    column: monthly_income
+    nullable: false
+    min: 0
+    max: 25000
+  R03_NO_DUPLICATES:
+    columns: [customer_id]
+    check_full_row: true
+  R04_SCHEMA:
+    required_columns:
+      - customer_id
+      - revolving_utilization
+      - age
+      - past_due_30_59
+      - debt_ratio
+      - monthly_income
+      - open_credit_lines
+      - times_90_days_late
+      - real_estate_loans
+      - past_due_60_89
+      - dependents
+    nullable_columns: [past_due_30_59, past_due_60_89, times_90_days_late, dependents]
+    target_allowed: true   
+  R05_NONNEG:
+    columns:
+      - revolving_utilization
+      - debt_ratio
+      - open_credit_lines
+      - real_estate_loans
+
+# Regras WARN: geram aviso, não bloqueiam.
+warn_rules:
+  W01_NULL_RATE:
+    max_null_rate: 0.05  
+  W02_MIN_VOLUME:
+    min_rows: 1000

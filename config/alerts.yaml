@@ -1,0 +1,8 @@
+# Limites iniciais; ajustar após E2-09 e após medir a latência real.
+rules:
+  A01_VALIDATION_BLOCKED: {severity: CRITICAL}
+  A02_DATASET_DRIFT:      {severity: WARNING,  metric: drift_share, threshold: 0.30}
+  A03_FEATURE_PSI:        {severity: CRITICAL, metric: psi,         threshold: 0.25}
+  A04_LATENCY:            {severity: WARNING,  metric: latency_total_s, threshold: 120}
+  A05_VOLUME:             {severity: WARNING,  metric: rows_in,     min: 1000, max: 10000}
+  A06_PREDICTION_DRIFT:   {severity: WARNING,  metric: score_psi,   threshold: 0.10}

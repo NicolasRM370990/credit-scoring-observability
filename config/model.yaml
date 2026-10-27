@@ -1,0 +1,11 @@
+seed: 42
+model:
+  name: HistGradientBoostingClassifier
+  params:
+    max_iter: 300
+    learning_rate: 0.05
+    early_stopping: true
+    random_state: 42
+threshold: null          # definir após o treino e registrar o motivo
+min_auc_test: 0.75       # valor inicial; ajustar depois de ver o resultado real
+model_version: baseline_v1

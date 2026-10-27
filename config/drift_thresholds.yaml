@@ -1,0 +1,4 @@
+psi_warn: 0.10
+psi_critical: 0.25
+ks_stat_min: 0.10
+drift_share_alert: 0.30
