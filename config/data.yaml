@@ -1,0 +1,58 @@
+version: 1
+seed: 42
+
+dataset:
+  name: give_me_some_credit
+  raw_file: data/raw/cs-training.csv
+  sha256: "PREENCHER"
+
+id_col: customer_id
+target: target              # 1 = inadimplente (atraso >= 90 dias em 2 anos), 0 = adimplente
+event_date_col: event_date  # só em lotes de produção
+batch_id_col: batch_id      # só em lotes de produção
+
+# nome original -> nome padrão (snake_case)
+rename:
+  SeriousDlqin2yrs: target
+  RevolvingUtilizationOfUnsecuredLines: revolving_utilization
+  age: age
+  NumberOfTime30-59DaysPastDueNotWorse: past_due_30_59
+  DebtRatio: debt_ratio
+  MonthlyIncome: monthly_income
+  NumberOfOpenCreditLinesAndLoans: open_credit_lines
+  NumberOfTimes90DaysLate: times_90_days_late
+  NumberRealEstateLoansOrLines: real_estate_loans
+  NumberOfTime60-89DaysPastDueNotWorse: past_due_60_89
+  NumberOfDependents: dependents
+
+features:
+  numerical:
+    - revolving_utilization
+    - age
+    - past_due_30_59
+    - debt_ratio
+    - monthly_income
+    - open_credit_lines
+    - times_90_days_late
+    - real_estate_loans
+    - past_due_60_89
+    - dependents
+  categorical: []
+
+# códigos especiais viram NaN no prepare (colunas ficam anuláveis no contrato)
+special_codes:
+  columns: [past_due_30_59, past_due_60_89, times_90_days_late]
+  values: [96, 98]
+
+# fração do total limpo
+split:
+  production_pool: 0.20
+  reference_train: 0.60
+  reference_val: 0.10
+  reference_test: 0.10
+
+paths:
+  processed: data/processed
+  production: data/production
+  quarantine: data/quarantine
+  artifacts: artifacts
