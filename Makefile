@@ -1,4 +1,4 @@
-.PHONY: setup test lint data
+.PHONY: setup test lint data prepare
 
 setup:
 	uv sync
@@ -10,5 +10,7 @@ lint:
 	uv run ruff check .
 
 data:
-	uv run python -m data.download
+	uv run python -m creditwatch.data.download
 
+prepare:
+	uv run python -m creditwatch.data.prepare
