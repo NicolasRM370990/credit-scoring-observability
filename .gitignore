@@ -3,13 +3,17 @@
 # ============================================================
 
 # --- Dados (NUNCA versionar: licença, privacidade e tamanho) ---
-# O data/README.md explica como baixar e traz o SHA-256 do arquivo.
-data/*
+# Só ficam no Git o data/README.md e os .gitkeep que mantêm as pastas.
+# O README explica como baixar e traz o SHA-256 do arquivo.
+data/**
+!data/**/
 !data/README.md
+!data/**/.gitkeep
 
 # --- Artefatos gerados pelo pipeline ---
 # Evidências pequenas e selecionadas vão para reports/ e docs/evidence/ (versionados).
-artifacts/
+artifacts/*
+!artifacts/.gitkeep
 
 # --- MLflow local ---
 mlflow/

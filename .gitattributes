@@ -1,0 +1,7 @@
+# Finais de linha sempre LF no repositório (evita CRLF do Windows em Makefile, YAML e scripts)
+* text=auto eol=lf
+*.ipynb text eol=lf
+*.parquet binary
+*.joblib binary
+*.png binary
+*.jpg binary
