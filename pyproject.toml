@@ -22,6 +22,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "nbstripout>=0.9.1",
     "pytest>=8",
     "ruff>=0.6",
 ]
