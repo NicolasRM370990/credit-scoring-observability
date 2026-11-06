@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from creditwatch.simulation import apply_scale, apply_shift_add
+from creditwatch.simulation import apply_resample_mix, apply_scale, apply_shift_add
 
 
 def test_apply_scale_multiplies_values():
@@ -174,3 +174,99 @@ def test_apply_shift_add_rejects_non_finite_value():
 
     with pytest.raises(ValueError, match="finito"):
         apply_shift_add(df, "revolving_utilization", float("inf"))
+
+
+def test_apply_resample_mix_returns_requested_sample_size():
+    df = pd.DataFrame({"customer_id": range(100)})
+
+    result = apply_resample_mix(df, sample_size=50, seed=42)
+
+    assert len(result) == 50
+
+
+def test_apply_resample_mix_is_reproducible():
+    df = pd.DataFrame({"customer_id": range(100)})
+
+    result_1 = apply_resample_mix(df, 50, seed=42)
+    result_2 = apply_resample_mix(df, 50, seed=42)
+
+    pd.testing.assert_frame_equal(result_1, result_2)
+
+
+def test_apply_resample_mix_allows_replacement():
+    df = pd.DataFrame({"customer_id": range(10)})
+
+    result = apply_resample_mix(
+        df,
+        sample_size=100,
+        seed=42,
+        replace=True,
+    )
+
+    assert len(result) == 100
+    assert result["customer_id"].nunique() <= 10
+
+
+def test_apply_resample_mix_without_replacement():
+    df = pd.DataFrame({"customer_id": range(100)})
+
+    result = apply_resample_mix(
+        df,
+        sample_size=50,
+        seed=42,
+        replace=False,
+    )
+
+    assert len(result) == 50
+    assert result["customer_id"].nunique() == 50
+
+
+def test_apply_resample_mix_preserves_columns():
+    df = pd.DataFrame(
+        {
+            "customer_id": range(100),
+            "monthly_income": range(1000, 1100),
+            "age": range(20, 120),
+        }
+    )
+
+    result = apply_resample_mix(df, 50, seed=42)
+
+    assert list(result.columns) == list(df.columns)
+
+
+def test_apply_resample_mix_does_not_modify_original_dataframe():
+    df = pd.DataFrame({"customer_id": range(100)})
+    original = df.copy(deep=True)
+
+    apply_resample_mix(df, 50, seed=42)
+
+    pd.testing.assert_frame_equal(df, original)
+
+
+def test_apply_resample_mix_rejects_invalid_sample_size():
+    df = pd.DataFrame({"customer_id": range(10)})
+
+    with pytest.raises(ValueError, match="maior que zero"):
+        apply_resample_mix(df, 0, seed=42)
+
+
+def test_apply_resample_mix_rejects_sample_size_without_replacement():
+    df = pd.DataFrame({"customer_id": range(10)})
+
+    with pytest.raises(ValueError, match="não pode ser maior"):
+        apply_resample_mix(df, 20, seed=42, replace=False)
+
+
+def test_apply_resample_mix_rejects_empty_dataframe():
+    df = pd.DataFrame({"customer_id": []})
+
+    with pytest.raises(ValueError, match="DataFrame vazio"):
+        apply_resample_mix(df, 10, seed=42)
+
+
+def test_apply_resample_mix_rejects_invalid_seed():
+    df = pd.DataFrame({"customer_id": range(10)})
+
+    with pytest.raises(ValueError, match="seed deve estar"):
+        apply_resample_mix(df, 5, seed=-1)

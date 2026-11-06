@@ -106,3 +106,55 @@ def apply_shift_add(
         result[feature] = result[feature].clip(lower=lower, upper=upper)
 
     return result
+
+
+def apply_resample_mix(
+    df: pd.DataFrame,
+    sample_size: int,
+    seed: int,
+    replace: bool = True,
+) -> pd.DataFrame:
+    """Reamostra registros do próprio DataFrame.
+
+    Args:
+        df: DataFrame de origem.
+        sample_size: Quantidade de registros da amostra.
+        seed: Semente para garantir reprodutibilidade.
+        replace: Permite selecionar o mesmo registro mais de uma vez.
+
+    Returns:
+        DataFrame contendo os registros reamostrados.
+
+    Raises:
+        TypeError: Se os argumentos possuírem tipos inválidos.
+        ValueError: Se o tamanho ou a seed forem inválidos.
+    """
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("df deve ser um pandas.DataFrame.")
+
+    if isinstance(sample_size, bool) or not isinstance(sample_size, int):
+        raise TypeError("sample_size deve ser um número inteiro.")
+
+    if sample_size <= 0:
+        raise ValueError("sample_size deve ser maior que zero.")
+
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise TypeError("seed deve ser um número inteiro.")
+
+    if not 0 <= seed <= 2**32 - 1:
+        raise ValueError("seed deve estar entre 0 e 4294967295.")
+
+    if not isinstance(replace, bool):
+        raise TypeError("replace deve ser booleano.")
+
+    if df.empty:
+        raise ValueError("Não é possível reamostrar um DataFrame vazio.")
+
+    if not replace and sample_size > len(df):
+        raise ValueError("sample_size não pode ser maior que o DataFrame quando replace=False.")
+
+    return df.sample(
+        n=sample_size,
+        replace=replace,
+        random_state=seed,
+    ).copy(deep=True)
