@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from numbers import Real
+from collections.abc import Mapping, Sequence
 
 import pandas as pd
 
@@ -158,3 +159,104 @@ def apply_resample_mix(
         replace=replace,
         random_state=seed,
     ).copy(deep=True)
+
+
+def apply_transformations(
+    df: pd.DataFrame,
+    transformations: list[dict],
+    seed: int,
+) -> pd.DataFrame:
+    """Executa uma sequência de transformações sobre um DataFrame.
+
+    Args:
+        df: DataFrame de origem.
+        transformations: Lista de configurações das transformações.
+        seed: Semente utilizada nas operações aleatórias.
+
+    Returns:
+        DataFrame com as transformações aplicadas.
+
+    Raises:
+        TypeError: Se os argumentos possuírem tipos inválidos.
+        ValueError: Se uma operação ou configuração for inválida.
+    """
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("df deve ser um pandas.DataFrame.")
+
+    if not isinstance(transformations, list):
+        raise TypeError("transformations deve ser uma lista.")
+
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise TypeError("seed deve ser um número inteiro.")
+
+    if not 0 <= seed <= 2**32 - 1:
+        raise ValueError("seed deve estar entre 0 e 4294967295.")
+
+    result = df.copy(deep=True)
+
+    for index, transformation in enumerate(transformations):
+        if not isinstance(transformation, Mapping):
+            raise TypeError(f"A transformação na posição {index} deve ser um dicionário.")
+
+        operation = transformation.get("op")
+        feature = transformation.get("feature")
+
+        if not isinstance(operation, str):
+            raise ValueError(f"A transformação na posição {index} precisa informar 'op'.")
+
+        if operation in {"scale", "shift_add"} and not isinstance(feature, str):
+            if not isinstance(feature, str):
+                raise ValueError(f"A transformação '{operation}' precisa informar 'feature'.")
+
+        if operation == "scale":
+            allowed_keys = {"feature", "op", "factor"}
+            if set(transformation) != allowed_keys:
+                raise ValueError(
+                    "Parâmetros inválidos para scale. Esperados: feature, op e factor."
+                )
+
+            result = apply_scale(
+                df=result,
+                feature=feature,
+                factor=transformation["factor"],
+            )
+
+        elif operation == "shift_add":
+            allowed_keys = {"feature", "op", "value", "clip"}
+            if not {"feature", "op", "value"}.issubset(transformation):
+                raise ValueError(
+                    "Parâmetros inválidos para shift_add. "
+                    "Esperados: feature, op e value; clip é opcional."
+                )
+
+            if set(transformation) - allowed_keys:
+                raise ValueError("Parâmetros desconhecidos para shift_add.")
+
+            result = apply_shift_add(
+                df=result,
+                feature=feature,
+                value=transformation["value"],
+                clip=transformation.get("clip"),
+            )
+
+        elif operation == "resample_mix":
+            allowed_keys = {"op", "sample_size", "replace"}
+            if not {"op", "sample_size"}.issubset(transformation):
+                raise ValueError(
+                    "Parâmetros inválidos para resample_mix. Esperados: op e sample_size."
+                )
+
+            if set(transformation) - allowed_keys:
+                raise ValueError("Parâmetros desconhecidos para resample_mix.")
+
+            result = apply_resample_mix(
+                df=result,
+                sample_size=transformation["sample_size"],
+                seed=seed,
+                replace=transformation.get("replace", True),
+            )
+
+        else:
+            raise ValueError(f"Operação não suportada: '{operation}'.")
+
+    return result

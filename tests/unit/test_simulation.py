@@ -1,7 +1,12 @@
 import pandas as pd
 import pytest
 
-from creditwatch.simulation import apply_resample_mix, apply_scale, apply_shift_add
+from creditwatch.simulation import (
+    apply_resample_mix,
+    apply_scale,
+    apply_shift_add,
+    apply_transformations,
+)
 
 
 def test_apply_scale_multiplies_values():
@@ -270,3 +275,103 @@ def test_apply_resample_mix_rejects_invalid_seed():
 
     with pytest.raises(ValueError, match="seed deve estar"):
         apply_resample_mix(df, 5, seed=-1)
+
+
+def test_apply_transformations_executes_scale():
+    df = pd.DataFrame({"monthly_income": [1000.0, 2000.0]})
+
+    result = apply_transformations(
+        df,
+        [{"feature": "monthly_income", "op": "scale", "factor": 1.25}],
+        seed=42,
+    )
+
+    assert result["monthly_income"].tolist() == [1250.0, 2500.0]
+
+
+def test_apply_transformations_executes_shift_add_with_clip():
+    df = pd.DataFrame({"revolving_utilization": [0.1, 2.95]})
+
+    result = apply_transformations(
+        df,
+        [
+            {
+                "feature": "revolving_utilization",
+                "op": "shift_add",
+                "value": 0.15,
+                "clip": [0, 3],
+            }
+        ],
+        seed=42,
+    )
+
+    assert result["revolving_utilization"].tolist() == pytest.approx([0.25, 3.0])
+
+
+def test_apply_transformations_executes_multiple_operations_in_order():
+    df = pd.DataFrame({"monthly_income": [1000.0, 2000.0]})
+
+    result = apply_transformations(
+        df,
+        [
+            {"feature": "monthly_income", "op": "scale", "factor": 1.25},
+            {"feature": "monthly_income", "op": "shift_add", "value": 100},
+        ],
+        seed=42,
+    )
+
+    assert result["monthly_income"].tolist() == [1350.0, 2600.0]
+
+
+def test_apply_transformations_executes_resample_mix():
+    df = pd.DataFrame({"customer_id": range(100)})
+
+    result = apply_transformations(
+        df,
+        [{"op": "resample_mix", "sample_size": 50}],
+        seed=42,
+    )
+
+    assert len(result) == 50
+
+
+def test_apply_transformations_rejects_unknown_operation():
+    df = pd.DataFrame({"monthly_income": [1000.0]})
+
+    with pytest.raises(ValueError, match="não suportada"):
+        apply_transformations(
+            df,
+            [{"feature": "monthly_income", "op": "unknown"}],
+            seed=42,
+        )
+
+
+def test_apply_transformations_rejects_invalid_parameters():
+    df = pd.DataFrame({"monthly_income": [1000.0]})
+
+    with pytest.raises(ValueError, match="Parâmetros inválidos"):
+        apply_transformations(
+            df,
+            [{"feature": "monthly_income", "op": "scale"}],
+            seed=42,
+        )
+
+
+def test_apply_transformations_does_not_modify_original_dataframe():
+    df = pd.DataFrame({"monthly_income": [1000.0, 2000.0]})
+    original = df.copy(deep=True)
+
+    apply_transformations(
+        df,
+        [{"feature": "monthly_income", "op": "scale", "factor": 1.25}],
+        seed=42,
+    )
+
+    pd.testing.assert_frame_equal(df, original)
+
+
+def test_apply_transformations_rejects_invalid_seed():
+    df = pd.DataFrame({"monthly_income": [1000.0]})
+
+    with pytest.raises(ValueError, match="seed deve estar"):
+        apply_transformations(df, [], seed=-1)
