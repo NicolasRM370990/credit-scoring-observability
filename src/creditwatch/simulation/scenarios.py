@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from numbers import Real
-from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 import pandas as pd
+import yaml
 
 
 def apply_scale(
@@ -202,11 +204,10 @@ def apply_transformations(
         feature = transformation.get("feature")
 
         if not isinstance(operation, str):
-            raise ValueError(f"A transformação na posição {index} precisa informar 'op'.")
+            raise TypeError(f"A transformação na posição {index} precisa informar 'op'.")
 
         if operation in {"scale", "shift_add"} and not isinstance(feature, str):
-            if not isinstance(feature, str):
-                raise ValueError(f"A transformação '{operation}' precisa informar 'feature'.")
+            raise ValueError(f"A transformação '{operation}' precisa informar 'feature'.")
 
         if operation == "scale":
             allowed_keys = {"feature", "op", "factor"}
@@ -260,3 +261,94 @@ def apply_transformations(
             raise ValueError(f"Operação não suportada: '{operation}'.")
 
     return result
+
+
+def load_scenario_config(config_path: Path) -> dict:
+    """Carrega e valida a estrutura principal do arquivo de cenários YAML.
+
+    Args:
+        config_path: Caminho do arquivo YAML.
+
+    Returns:
+        Configuração carregada.
+
+    Raises:
+        FileNotFoundError: Se o arquivo não existir.
+        ValueError: Se o YAML ou sua estrutura forem inválidos.
+    """
+    config_path = Path(config_path)
+
+    if not config_path.is_file():
+        raise FileNotFoundError(f"Arquivo de configuração não encontrado: {config_path}")
+
+    try:
+        with config_path.open("r", encoding="utf-8") as file:
+            config = yaml.safe_load(file)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Arquivo YAML inválido: {config_path}") from exc
+
+    if not isinstance(config, dict):
+        raise TypeError("A configuração deve ser um objeto YAML.")
+
+    required_keys = {"version", "seed", "scenarios"}
+    missing_keys = required_keys - config.keys()
+
+    if missing_keys:
+        raise ValueError(f"Configuração sem campos obrigatórios: {sorted(missing_keys)}")
+
+    seed = config["seed"]
+
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise TypeError("seed deve ser um número inteiro.")
+
+    if not 0 <= seed <= 2**32 - 1:
+        raise ValueError("seed deve estar entre 0 e 4294967295.")
+
+    if not isinstance(config["scenarios"], dict):
+        raise TypeError("scenarios deve ser um objeto YAML.")
+
+    return config
+
+
+def apply_scenario_transformations(
+    df: pd.DataFrame,
+    scenario: str,
+    config_path: Path,
+) -> pd.DataFrame:
+    """Carrega um cenário YAML e aplica suas transformações ao DataFrame.
+
+    Args:
+        df: DataFrame de origem.
+        scenario: Nome do cenário configurado no YAML.
+        config_path: Caminho do arquivo drift_scenarios.yaml.
+
+    Returns:
+        DataFrame transformado.
+
+    Raises:
+        ValueError: Se o cenário ou suas transformações forem inválidos.
+    """
+    if not isinstance(scenario, str) or not scenario.strip():
+        raise ValueError("scenario deve ser uma string não vazia.")
+
+    config = load_scenario_config(config_path)
+    scenarios = config["scenarios"]
+
+    if scenario not in scenarios:
+        raise ValueError(f"Cenário não encontrado na configuração: '{scenario}'.")
+
+    scenario_config = scenarios[scenario]
+
+    if not isinstance(scenario_config, dict):
+        raise TypeError(f"A configuração do cenário '{scenario}' deve ser um objeto.")
+
+    transformations = scenario_config.get("transformations")
+
+    if not isinstance(transformations, list):
+        raise TypeError(f"O cenário '{scenario}' deve possuir uma lista de transformations.")
+
+    return apply_transformations(
+        df=df,
+        transformations=transformations,
+        seed=config["seed"],
+    )

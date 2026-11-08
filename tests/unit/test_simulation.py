@@ -1,11 +1,16 @@
+from pathlib import Path
+
 import pandas as pd
 import pytest
+import yaml
 
 from creditwatch.simulation import (
     apply_resample_mix,
     apply_scale,
+    apply_scenario_transformations,
     apply_shift_add,
     apply_transformations,
+    load_scenario_config,
 )
 
 
@@ -375,3 +380,95 @@ def test_apply_transformations_rejects_invalid_seed():
 
     with pytest.raises(ValueError, match="seed deve estar"):
         apply_transformations(df, [], seed=-1)
+
+
+def test_load_scenario_config_reads_yaml():
+    config_path = Path("config/drift_scenarios.yaml")
+
+    config = load_scenario_config(config_path)
+
+    assert config["version"] == 1
+    assert config["seed"] == 42
+    assert "covariate_moderate" in config["scenarios"]
+
+
+def test_apply_scenario_transformations_moderate():
+    df = pd.DataFrame(
+        {
+            "monthly_income": [1000.0, 2000.0],
+            "revolving_utilization": [0.1, 2.95],
+            "age": [25, 35],
+        }
+    )
+
+    config_path = Path("config/drift_scenarios.yaml")
+
+    result = apply_scenario_transformations(
+        df=df,
+        scenario="covariate_moderate",
+        config_path=config_path,
+    )
+
+    assert result["monthly_income"].tolist() == [1250.0, 2500.0]
+
+    assert result["revolving_utilization"].tolist() == pytest.approx([0.25, 3.0])
+
+    pd.testing.assert_series_equal(result["age"], df["age"])
+
+
+def test_apply_scenario_transformations_no_drift():
+    df = pd.DataFrame(
+        {
+            "monthly_income": [1000.0, 2000.0],
+            "revolving_utilization": [0.1, 2.95],
+        }
+    )
+
+    config_path = Path("config/drift_scenarios.yaml")
+
+    result = apply_scenario_transformations(
+        df=df,
+        scenario="no_drift",
+        config_path=config_path,
+    )
+
+    pd.testing.assert_frame_equal(result, df)
+
+    assert result is not df
+
+
+def test_apply_scenario_transformations_rejects_unknown_scenario():
+    df = pd.DataFrame({"age": [25, 35]})
+
+    config_path = Path("config/drift_scenarios.yaml")
+
+    with pytest.raises(ValueError, match="Cenário não encontrado"):
+        apply_scenario_transformations(
+            df=df,
+            scenario="invalid_scenario",
+            config_path=config_path,
+        )
+
+
+def test_load_scenario_config_rejects_missing_file():
+    with pytest.raises(FileNotFoundError):
+        load_scenario_config(Path("config/arquivo_inexistente.yaml"))
+
+
+def test_load_scenario_config_rejects_invalid_yaml(tmp_path):
+    config_path = tmp_path / "invalid.yaml"
+    config_path.write_text("scenarios: [invalid", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="YAML inválido"):
+        load_scenario_config(config_path)
+
+
+def test_load_scenario_config_rejects_missing_required_keys(tmp_path):
+    config_path = tmp_path / "incomplete.yaml"
+    config_path.write_text(
+        yaml.safe_dump({"version": 1, "seed": 42}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="campos obrigatórios"):
+        load_scenario_config(config_path)
