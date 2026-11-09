@@ -18,7 +18,6 @@ from creditwatch.simulation.scenarios import (
     load_scenario_config,
 )
 
-
 SUPPORTED_SCENARIOS = {
     "no_drift",
     "covariate_moderate",
@@ -28,7 +27,7 @@ SUPPORTED_SCENARIOS = {
 
 def _batch_seed(seed: int, batch_number: int) -> int:
     """Gera uma seed determinística para cada lote."""
-    payload = f"{seed}:{batch_number}".encode("utf-8")
+    payload = f"{seed}:{batch_number}".encode()
     digest = hashlib.sha256(payload).digest()
     return int.from_bytes(digest[:4], byteorder="big")
 
@@ -93,13 +92,13 @@ def generate_scenario(
     seed = config["seed"]
 
     if isinstance(batches_count, bool) or not isinstance(batches_count, int):
-        raise ValueError("batches deve ser um número inteiro.")
+        raise TypeError("batches deve ser um número inteiro.")
 
     if batches_count <= 0:
         raise ValueError("batches deve ser maior que zero.")
 
     if isinstance(batch_size, bool) or not isinstance(batch_size, int):
-        raise ValueError("batch_size deve ser um número inteiro.")
+        raise TypeError("batch_size deve ser um número inteiro.")
 
     if batch_size <= 0:
         raise ValueError("batch_size deve ser maior que zero.")
