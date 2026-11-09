@@ -4,10 +4,8 @@ import pandas as pd
 from creditwatch.simulation import generate_scenario
 
 
-def test_generate_no_drift(tmp_path):
-    pool = pd.read_parquet(
-        "data/processed/production_pool.parquet"
-    )
+def test_generate_no_drift(tmp_path, production_pool):
+    pool = production_pool
 
     output_dir = tmp_path / "production"
 
@@ -33,10 +31,8 @@ def test_generate_no_drift(tmp_path):
     assert manifest.exists()
 
 
-def test_generate_no_drift_is_reproducible(tmp_path):
-    pool = pd.read_parquet(
-        "data/processed/production_pool.parquet"
-    )
+def test_generate_no_drift_is_reproducible(tmp_path, production_pool):
+    pool = production_pool
 
     first = generate_scenario(
         pool=pool,
@@ -60,10 +56,8 @@ def test_generate_no_drift_is_reproducible(tmp_path):
 
 
 
-def test_generate_covariate_moderate(tmp_path):
-    pool = pd.read_parquet(
-        "data/processed/production_pool.parquet"
-    )
+def test_generate_covariate_moderate(tmp_path, production_pool):
+    pool = production_pool
 
     generated = generate_scenario(
         pool=pool,
@@ -83,10 +77,8 @@ def test_generate_covariate_moderate(tmp_path):
         assert batch["age"].between(18, 110).all()
 
 
-def test_generate_covariate_severe(tmp_path):
-    pool = pd.read_parquet(
-        "data/processed/production_pool.parquet"
-    )
+def test_generate_covariate_severe(tmp_path, production_pool):
+    pool = production_pool
 
     generated = generate_scenario(
         pool=pool,
