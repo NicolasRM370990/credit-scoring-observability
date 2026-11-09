@@ -96,12 +96,78 @@ def evaluate_split(model, frame: pd.DataFrame, features: list[str], target: str,
     return evaluate_predictions(frame[target], scores, threshold)
 
 
+def evaluate_with_labels(
+    model, frame: pd.DataFrame, features: list[str], target: str, threshold: float
+) -> dict:
+    """Avalia um lote de produção quando o target atrasado estiver disponível.
+
+    A função não usa os rótulos no scoring: eles entram somente na avaliação
+    posterior. Retorna as mesmas métricas do conjunto de referência.
+    """
+    if target not in frame.columns:
+        raise ValueError(f"Lote rotulado precisa conter a coluna {target!r}")
+    return evaluate_split(model, frame, features, target, threshold)
+
+
+def evaluate_labeled_batches(
+    model,
+    reference: pd.DataFrame,
+    batches: dict[str, pd.DataFrame],
+    features: list[str],
+    target: str,
+    threshold: float,
+    drift_by_batch: dict[str, bool] | None = None,
+) -> list[dict]:
+    """Compara desempenho de referência e lotes rotulados por cenário."""
+    results = [{
+        "batch_id": "reference",
+        "scenario": "reference",
+        "drift_detected": False,
+        **evaluate_split(model, reference, features, target, threshold),
+    }]
+    for batch_id, frame in batches.items():
+        results.append({
+            "batch_id": batch_id,
+            "scenario": batch_id.split("_batch_")[0],
+            "drift_detected": (drift_by_batch or {}).get(batch_id),
+            **evaluate_with_labels(model, frame, features, target, threshold),
+        })
+    return results
+
+
+def write_perf_vs_drift(results: list[dict], output: Path) -> None:
+    """Grava tabela Markdown comparando detecção e desempenho rotulado."""
+    columns = ("scenario", "batch_id", "drift_detected", "roc_auc", "pr_auc", "ks", "brier")
+    lines = [
+        "# Desempenho rotulado × drift",
+        "",
+        "As métricas de desempenho exigem rótulos observados. `drift_detected` vem do resultado do detector;",
+        "a comparação não interpreta drift como causa de degradação.",
+        "",
+        "| Cenário | Lote | Drift detectado | ROC-AUC | PR-AUC | KS | Brier |",
+        "|---|---|---:|---:|---:|---:|---:|",
+    ]
+    for row in results:
+        values = [row.get(column) for column in columns]
+        values[2] = "não informado" if values[2] is None else ("sim" if values[2] else "não")
+        values[3:] = ["n/a" if value is None else f"{float(value):.4f}" for value in values[3:]]
+        lines.append("| " + " | ".join(map(str, values)) + " |")
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Avalia o modelo salvo no split de teste")
     parser.add_argument("--model", type=Path, default=Path("models/baseline_v1.joblib"))
     parser.add_argument("--metadata", type=Path, default=Path("models/baseline_v1.json"))
     parser.add_argument("--split", type=Path, default=Path("data/processed/reference_test.parquet"))
     parser.add_argument("--output", type=Path, help="Opcional: salva métricas JSON neste caminho")
+    parser.add_argument("--labeled-dir", type=Path, help="Diretório de lotes rotulados de produção")
+    parser.add_argument(
+        "--perf-report", type=Path, default=Path("docs/evidence/perf_vs_drift.md"),
+        help="Relatório comparativo Markdown para --labeled-dir",
+    )
     args = parser.parse_args()
 
     import joblib
@@ -109,13 +175,30 @@ def main() -> int:
     metadata = json.loads(args.metadata.read_text(encoding="utf-8"))
     cfg = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
     frame = pd.read_parquet(args.split)
-    result = evaluate_split(
-        joblib.load(args.model), frame, metadata["features"], cfg["target"], metadata["threshold"]
-    )
-    print(json.dumps(result, indent=2, ensure_ascii=False))
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    model = joblib.load(args.model)
+    if args.labeled_dir:
+        batch_frames = {
+            path.stem: pd.read_parquet(path)
+            for path in sorted(args.labeled_dir.glob("*.parquet"))
+        }
+        if not batch_frames:
+            raise FileNotFoundError(f"Nenhum lote Parquet rotulado em {args.labeled_dir}")
+        results = evaluate_labeled_batches(
+            model, frame, batch_frames, metadata["features"], cfg["target"], metadata["threshold"]
+        )
+        write_perf_vs_drift(results, args.perf_report)
+        print(json.dumps(results, indent=2, ensure_ascii=False))
+        print(f"Relatório gravado em {args.perf_report}")
+    else:
+        result = evaluate_split(
+            model, frame, metadata["features"], cfg["target"], metadata["threshold"]
+        )
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+            )
     return 0
 
 
