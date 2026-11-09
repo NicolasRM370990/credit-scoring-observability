@@ -96,7 +96,7 @@
 | 2 | Disponibilidade semanal de cada integrante | 12 h/semana por pessoa (faixa 10–12) | Com 10 h/semana, aplicar o plano de corte (seção 16) |
 | 3 | Domínio da equipe em Evidently, Pandera e MLflow | Todos sabem Python e Git; **ninguém** domina as três bibliotecas, então há *spikes* na semana 0 | Se alguém já domina, reduzir E0-03 a E0-05 |
 | 4 | Reuso da Fase 3 (API Docker, GitHub Actions, Prometheus/Grafana, Airflow) | Reaproveitar **somente o workflow do GitHub Actions e o padrão de Dockerfile**, se o repositório for do mesmo grupo | Se houver exporter Prometheus pronto, avaliar +2–3 h para expor as métricas (opcional) |
-| 5 | Restrições de ambiente | Notebooks pessoais, Python 3.11, sem GPU, sem cloud, internet disponível | Se alguém não tiver conta Kaggle, usar o plano B (UCI, sem login) |
+| 5 | Restrições de ambiente | Notebooks pessoais, Python 3.12 (alinhado ao projeto), sem GPU, sem cloud, internet disponível | Se alguém não tiver conta Kaggle, usar o plano B (UCI, sem login) |
 | 6 | O vídeo exige todos os integrantes? Qual formato e onde hospedar? | Narração por 1–2 pessoas; hospedagem em YouTube não listado ou Drive | Ajustar V-03 |
 | 7 | Há regras sobre IA generativa ou revisão de autoria no projeto? | Não | Documentar o uso no README |
 
@@ -105,7 +105,7 @@
 | Item | Decisão |
 |---|---|
 | Workflow de CI (GitHub Actions) | **Reutilizar** a estrutura (lint + pytest) |
-| Dockerfile | **Adaptar** (base `python:3.11-slim`) |
+| Dockerfile | **Adaptar** (base `python:3.12-slim`) |
 | Prometheus + Grafana | **Não carregar** por padrão. MLflow + HTML cobrem o PDF |
 | Airflow e API REST | **Não carregar**: complexidade sem retorno para esta fase |
 
@@ -165,7 +165,7 @@ flowchart LR
 
 | Componente | Escolha | Justificativa | Observação |
 |---|---|---|---|
-| Linguagem | Python **3.11** | Compatível com todas as libs | Fixar no CI e no Docker |
+| Linguagem | Python **3.12** | Compatível com dependências travadas do projeto | Fixar no CI e no Docker |
 | Dados | pandas + pyarrow (Parquet) | Tipos preservados, rápido | CSV só para os lotes de demonstração, se necessário |
 | Modelo | scikit-learn `HistGradientBoostingClassifier` | Trata NaN, sem dependência extra | XGBoost só se a equipe preferir (PDF aceita ambos) |
 | Contrato | **Pandera** (`lazy=True`) | Falhas por linha e por regra | Fixar versão e conferir o import na versão instalada |
@@ -308,7 +308,7 @@ S0 tem folga: usar para ler a documentação das bibliotecas. **S1 e S2 são os 
 
 | ID | Tipo · Pri | Resp | Sp | Dep. | h | Tarefa e objetivo | Arquivos | Aceite verificável + teste | Risco |
 |---|---|---|---|---|---:|---|---|---|---|
-| E0-01 | INT · P0 | P1 | S0 | — | 2 | Criar repo, estrutura, `requirements*.txt` com versões fixas, Makefile (`setup`, `test`, `lint`, `demo`), `.gitignore`, template de PR, proteger `main` | raiz | Clone limpo + `make setup && make test` passa (1 teste dummy). `main` só aceita PR | Conflito de versões → fixar Python 3.11 |
+| E0-01 | INT · P0 | P1 | S0 | — | 2 | Criar repo, estrutura, `pyproject.toml` + `uv.lock`, Makefile (`setup`, `test`, `lint`, `demo`), `.gitignore`, template de PR, proteger `main` | raiz | Clone limpo + `make setup && make test` passa (1 teste dummy). `main` só aceita PR | Conflito de versões → fixar Python 3.12 conforme projeto |
 | E0-02 | PESQ · P0 | P1 | S0 | — | 1,5 | Decidir dataset: confirmar ≥ 5.000 linhas, licença/termos, target binário, colunas de idade e renda | `docs/decisions/ADR-001-dataset.md` | ADR com nº de linhas medido (`len(df)`), % de positivos, link, termos de uso. Aprovado por todos no PR | Kaggle exige login e aceite de regras → plano B UCI |
 | E0-03 | PESQ · P0 | P3 | S0 | E0-01 | 2,5 | Spike Evidently: gerar relatório de drift entre 2 DataFrames de brinquedo e **descobrir como extrair o resultado programaticamente** | `notebooks/spike_evidently.py`, ADR-002 | `reports/spike.html` abre; ADR-002 registra versão fixada e o trecho de código de extração | API muda entre versões |
 | E0-04 | PESQ · P0 | P2 | S0 | E0-01 | 1,5 | Spike Pandera: schema de brinquedo com 3 regras, `lazy=True`, extrair `failure_cases` | `notebooks/spike_pandera.py`, ADR-003 | Script imprime falhas por regra e por linha. ADR-003 com versão e import corretos | Import varia por versão |

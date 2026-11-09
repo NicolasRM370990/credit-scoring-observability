@@ -4,7 +4,7 @@ seed: 42
 dataset:
   name: give_me_some_credit
   raw_file: data/raw/cs-training.csv
-  sha256: "PREENCHER"
+  sha256: "1bd46da486a5708c58c7b01a034fae2a13b327f6f7b62ea7ba4fe3b5824b24ac"
 
 id_col: customer_id
 target: target              # 1 = inadimplente (atraso >= 90 dias em 2 anos), 0 = adimplente

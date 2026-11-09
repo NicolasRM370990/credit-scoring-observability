@@ -80,8 +80,8 @@ def main() -> int:
 
     expected = cfg["dataset"]["sha256"]
     if expected in ("", "PREENCHER"):
-        print(f"SHA-256 ainda não registrado. Valor atual: {digest}")
-        print("Copie para config/data.yaml e data/README.md.")
+        print("ERRO: SHA-256 não configurado em config/data.yaml.", file=sys.stderr)
+        return 1
     elif digest != expected:
         print(f"ERRO: SHA-256 diferente.\n  esperado: {expected}\n  obtido:   {digest}", file=sys.stderr)
         return 1
@@ -89,6 +89,18 @@ def main() -> int:
         print("SHA-256 confere.")
 
     df = load_raw(cfg)
+    required = set(cfg["rename"].values())
+    missing = required - set(df.columns)
+    if missing:
+        print(f"ERRO: colunas esperadas ausentes no CSV: {sorted(missing)}", file=sys.stderr)
+        return 1
+    target = cfg["target"]
+    if not df[target].dropna().isin([0, 1]).all():
+        print(f"ERRO: target {target!r} precisa conter somente 0 e 1.", file=sys.stderr)
+        return 1
+    if len(df) < 5000:
+        print(f"ERRO: dataset tem {len(df)} linhas; mínimo esperado é 5.000.", file=sys.stderr)
+        return 1
     out_dir = Path(cfg["paths"]["processed"])
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / "full.parquet"

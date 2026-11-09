@@ -1,6 +1,6 @@
 # ADR-001: Escolha do dataset
 
-- **Status:** proposto (aprovar no PR)
+- **Status:** decisão técnica proposta para o protótipo; requer revisão do grupo. Regras de uso do Kaggle devem ser respeitadas. Não redistribuir o arquivo.
 - **Data:** 2026-10-26
 - **Responsável:** P1 (Dados e Modelo)
 
@@ -23,14 +23,15 @@ Usar o **Give Me Some Credit** (Kaggle), arquivo `cs-training.csv`.
 | Idade | mínimo 0 (inválido), máximo 109 |
 | Códigos especiais | valor 98 (e possivelmente 96) nas colunas de atraso |
 | Valores extremos | utilização máx. 50.708; `DebtRatio` máx. 329.664 |
-| Idade < 18 | <!-- PREENCHER: célula 3 do EDA --> |
-| Percentis p99 / p99,9 de renda | <!-- PREENCHER: célula 4 --> |
-| Linhas após limpeza (idade >= 18 e renda não nula) | <!-- PREENCHER: célula 7 --> |
-| Taxa do target após limpeza | <!-- PREENCHER: célula 7 --> |
-| Taxa do target com renda nula × com renda | <!-- PREENCHER: célula 5 --> |
+| Idade < 18 | 1 linha |
+| Percentis p99 / p99,9 de renda | 25.000 / 78.395,75 |
+| Linhas após limpeza aplicada no pipeline atual | 119.001 |
+| Taxa do target após limpeza | ~6,97% |
+| Taxa do target com renda nula × com renda | 5,61% × 6,95% |
 
 ## Licença e origem
-- Fonte: página da competição *Give Me Some Credit* no Kaggle
+- Fonte: [página da competição *Give Me Some Credit* no Kaggle](https://www.kaggle.com/competitions/give-me-some-credit/data)
+- Licença: não presumida. O uso fica sujeito às regras da competição e aos termos Kaggle vigentes; validar antes de redistribuir ou usar fora do contexto permitido.
 - O dataset **não é versionado** no repositório. O `data/README.md` explica como baixar e traz o SHA-256.
 
 ## Consequências

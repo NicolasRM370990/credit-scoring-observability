@@ -108,6 +108,15 @@ def prepare(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     raw_path = Path(cfg["dataset"]["raw_file"])
+    if not raw_path.is_file():
+        raise FileNotFoundError(f"Dataset não encontrado: {raw_path}. Rode `make data` primeiro.")
+    expected_hash = cfg["dataset"].get("sha256", "")
+    actual_hash = sha256_of(raw_path)
+    if expected_hash in ("", "PREENCHER") or actual_hash != expected_hash:
+        raise ValueError(
+            "SHA-256 do dataset não confere com config/data.yaml: "
+            f"esperado={expected_hash!r}, obtido={actual_hash!r}"
+        )
     df = load_raw(cfg)
     columns = [*cfg["features"]["numerical"], *cfg["features"]["categorical"], cfg["target"]]
     df = df[columns]
