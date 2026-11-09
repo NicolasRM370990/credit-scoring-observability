@@ -13,39 +13,50 @@ def apply_scale(
     df: pd.DataFrame,
     feature: str,
     factor: float,
+    clip: tuple[float, float] | list[float] | None = None,
 ) -> pd.DataFrame:
-    """Multiplica uma coluna numérica por um fator, sem alterar o DataFrame original.
-
-    Args:
-        df: DataFrame de entrada.
-        feature: Nome da coluna que será transformada.
-        factor: Fator de multiplicação.
-
-    Returns:
-        Uma cópia do DataFrame com a coluna transformada.
-
-    Raises:
-        TypeError: Se df não for DataFrame ou factor não for numérico.
-        ValueError: Se a coluna não existir, não for numérica ou
-            se factor não for finito.
-    """
-    if not isinstance(df, pd.DataFrame):
-        raise TypeError("df deve ser um pandas.DataFrame.")
-
+    """Multiplica uma coluna por um fator e aplica limites opcionais."""
     if feature not in df.columns:
         raise ValueError(f"A coluna '{feature}' não existe no DataFrame.")
-
-    if not pd.api.types.is_numeric_dtype(df[feature]):
-        raise ValueError(f"A coluna '{feature}' deve possuir valores numéricos.")
 
     if isinstance(factor, bool) or not isinstance(factor, Real):
         raise TypeError("factor deve ser um número real.")
 
-    if not math.isfinite(float(factor)):
-        raise ValueError("factor deve ser um número finito.")
+    if not math.isfinite(factor):
+        raise ValueError("factor deve ser finito.")
+
+    if factor <= 0:
+        raise ValueError("factor deve ser um número positivo.")
 
     result = df.copy(deep=True)
-    result[feature] = result[feature] * factor
+
+    try:
+        result[feature] = pd.to_numeric(result[feature], errors="raise") * factor
+    except (ValueError, TypeError) as exc:
+        raise ValueError(
+            f"A coluna '{feature}' deve conter valores numéricos."
+        ) from exc
+
+    if clip is not None:
+        if (
+            not isinstance(clip, (tuple, list))
+            or len(clip) != 2
+            or any(
+                isinstance(value, bool) or not isinstance(value, Real)
+                for value in clip
+            )
+        ):
+            raise ValueError("clip deve conter dois valores numéricos.")
+
+        lower, upper = clip
+
+        if not math.isfinite(lower) or not math.isfinite(upper):
+            raise ValueError("Os limites de clip devem ser finitos.")
+
+        if lower > upper:
+            raise ValueError("O limite inferior de clip não pode superar o superior.")
+
+        result[feature] = result[feature].clip(lower=lower, upper=upper)
 
     return result
 
@@ -211,15 +222,22 @@ def apply_transformations(
 
         if operation == "scale":
             allowed_keys = {"feature", "op", "factor"}
-            if set(transformation) != allowed_keys:
+            required_keys = {"feature", "op", "factor"}
+
+            if not required_keys.issubset(transformation):
                 raise ValueError(
-                    "Parâmetros inválidos para scale. Esperados: feature, op e factor."
+                    "Parâmetros inválidos para scale. "
+                    "Esperados: feature, op e factor; clip é opcional."
                 )
 
+            if set(transformation) - (allowed_keys | {"clip"}):
+                raise ValueError("Parâmetros desconhecidos para scale.")
+
             result = apply_scale(
-                df=result,
-                feature=feature,
+                result,
+                feature=transformation["feature"],
                 factor=transformation["factor"],
+                clip=transformation.get("clip"),
             )
 
         elif operation == "shift_add":
