@@ -109,7 +109,9 @@ class DriftResult(BaseModel):
     features: list[FeatureDrift]
     prediction_drift: PredictionDrift | None = None
     thresholds: DriftThresholds
-    report_html: str | None = None
+    report_html: str | None = Field(
+        default=None, description="Caminho local do HTML Evidently gerado para este lote."
+    )
     created_at: datetime = Field(default_factory=utc_now)
 
 

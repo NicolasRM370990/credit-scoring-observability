@@ -33,6 +33,7 @@ Estágios: `ingest, validate, score, drift, alert, report, pipeline`.
 
 ## 4. Métricas e alertas
 - `RunMetrics`: uma linha por execução em `artifacts/metrics/run_history.jsonl`. No MLflow, `latency_s`, `psi` e `ks` viram `latency_<estágio>_s`, `psi_<feature>` e `ks_<feature>`.
+- `DriftResult.report_html`: caminho local para o HTML Evidently gerado pelo detector/relatórios; o pipeline copia o arquivo para `artifacts/drift/`.
 - MLflow: experimentos `credit-scoring-training` e `credit-scoring-monitoring`. Nome do run = `batch_id`. Tags: `scenario`, `status`, `model_version`, `contract_version`.
 - Alertas em `artifacts/alerts/alerts.jsonl`. Regras A01 a A06 em `config/alerts.yaml`.
 
