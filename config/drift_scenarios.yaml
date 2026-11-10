@@ -1,6 +1,7 @@
 version: 1
 seed: 42
 batch_size: 3000
+start_date: "2026-01-01"
 
 scenarios:
   no_drift:

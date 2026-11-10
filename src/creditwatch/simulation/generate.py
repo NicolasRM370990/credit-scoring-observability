@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +14,7 @@ import pandas as pd
 from creditwatch.contracts import validate_batch
 from creditwatch.simulation.scenarios import (
     apply_resample_mix,
-    apply_scenario_transformations,
+    apply_transformations,
     load_scenario_config,
 )
 
@@ -58,6 +58,51 @@ def _save_manifest(
     return manifest_path
 
 
+def _get_batch_intensity(
+    scenario_config: dict[str, Any],
+    batch_number: int,
+    batches_count: int,
+) -> float:
+    """Calcula a intensidade de drift para o lote atual."""
+    transformations = scenario_config.get("transformations", [])
+
+    if not transformations:
+        return 0.0
+
+    ramp = scenario_config.get("ramp")
+
+    if ramp != "linear":
+        raise ValueError(
+            f"Ramp não suportado para o cenário: {ramp}"
+        )
+
+    return batch_number / batches_count
+
+
+def _build_batch_transformations(
+    transformations: list[dict[str, Any]],
+    intensity: float,
+) -> list[dict[str, Any]]:
+    """Calcula os parâmetros efetivos das transformações do lote."""
+    batch_transformations = []
+
+    for transformation in transformations:
+        current = transformation.copy()
+        operation = current.get("op")
+
+        if operation == "scale":
+            max_factor = current["factor"]
+            current["factor"] = 1 + (max_factor - 1) * intensity
+
+        elif operation == "shift_add":
+            max_value = current["value"]
+            current["value"] = max_value * intensity
+
+        batch_transformations.append(current)
+
+    return batch_transformations
+
+
 def generate_scenario(
     pool: pd.DataFrame,
     scenario: str,
@@ -86,6 +131,18 @@ def generate_scenario(
         )
 
     scenario_config = scenarios[scenario]
+
+    start_date_value = config.get("start_date")
+
+    if not isinstance(start_date_value, str):
+        raise TypeError("start_date deve ser uma string no formato YYYY-MM-DD.")
+
+    try:
+        start_date = date.fromisoformat(start_date_value)
+    except ValueError as exc:
+        raise ValueError(
+            "start_date inválida. Utilize o formato YYYY-MM-DD."
+        ) from exc
 
     batches_count = scenario_config.get("batches")
     batch_size = config.get("batch_size")
@@ -130,13 +187,28 @@ def generate_scenario(
 
         batch = sampled_pool.iloc[start:end].copy(deep=True)
 
-        batch = apply_scenario_transformations(
-            df=batch,
-            scenario=scenario,
-            config_path=config_path,
+        intensity = _get_batch_intensity(
+            scenario_config=scenario_config,
+            batch_number=batch_number,
+            batches_count=batches_count,
         )
 
+        transformations = _build_batch_transformations(
+            transformations=scenario_config.get("transformations", []),
+            intensity=intensity,
+        )
+
+        batch_seed = _batch_seed(seed, batch_number)
+
+        if transformations:
+            batch = apply_transformations(
+                df=batch,
+                transformations=transformations,
+                seed=batch_seed,
+            )
+
         batch_id = f"{scenario}_batch_{batch_number:02d}"
+        event_date = start_date + timedelta(days=batch_number - 1)
 
         result = validate_batch(
             batch,
@@ -148,6 +220,9 @@ def generate_scenario(
                 f"Lote {batch_id} bloqueado pelo contrato: "
                 f"{result.model_dump_json()}"
             )
+
+        # A coluna é adicionada após a validação do contrato.
+        batch["event_date"] = pd.Timestamp(event_date)
 
         output_path = output_dir / f"batch_{batch_number:02d}.parquet"
         batch.to_parquet(output_path, index=False)
@@ -161,7 +236,9 @@ def generate_scenario(
                 "n_rows": len(batch),
                 "validation_status": result.status,
                 "seed": _batch_seed(seed, 0),
-                "transformations": scenario_config.get("transformations", []),
+                "event_date": event_date.isoformat(),
+                "intensity": intensity,
+                "transformations": transformations,
             }
         )
 
