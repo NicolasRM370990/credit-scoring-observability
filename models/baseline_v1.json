@@ -1,7 +1,7 @@
 {
   "model_version": "baseline_v1",
   "model_name": "HistGradientBoostingClassifier",
-  "created_at": "2026-11-03T18:01:16.804794+00:00",
+  "created_at": "2026-11-10T02:21:15.882503+00:00",
   "features": [
     "revolving_utilization",
     "age",
@@ -83,5 +83,5 @@
     }
   },
   "min_auc_test": 0.75,
-  "model_sha256": "b434d684906344c4bda3355a2249648f27778ee896f0192231dee394bf57c1d3"
+  "model_sha256": "6091e4ad2a71c0213de3a1ecfa8c3e04beca2c5c00d9fd803fed4487d8593236"
 }
