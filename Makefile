@@ -1,4 +1,5 @@
-.PHONY: setup test lint data prepare train evaluate evaluate-labeled score bias demo-smoke demo demo-video
+.PHONY: setup test lint data prepare train evaluate evaluate-labeled score bias demo-smoke demo demo-video \
+        mlflow-ui mlflow-training dashboard alerts-summary evidence
 
 setup:
 	uv sync
@@ -41,3 +42,22 @@ demo:
 
 demo-video:
 	uv run python -m creditwatch.pipeline.run --demo-video
+
+# --- Observabilidade (P4) ---
+mlflow-ui:
+	uv run mlflow ui --backend-store-uri sqlite:///mlflow/mlflow.db --port 5000
+
+mlflow-training:
+	uv run python -m creditwatch.observability.mlflow_tracker --training
+
+dashboard:
+	uv run python -m creditwatch.observability.dashboard
+
+alerts-summary:
+	uv run python -m creditwatch.observability.alerts
+	uv run python -m creditwatch.observability.metrics
+
+# copia evidências pequenas (dashboard + alertas + histórico) para docs/evidence/
+evidence: dashboard
+	uv run python -m creditwatch.observability.dashboard --cdn --output docs/evidence/dashboard.html
+	uv run python -c "import shutil,pathlib; d=pathlib.Path('docs/evidence'); [shutil.copy2(p, d/p.name) for p in map(pathlib.Path, ['artifacts/alerts/alerts.jsonl','artifacts/metrics/run_history.jsonl']) if p.exists()]"
