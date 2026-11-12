@@ -36,6 +36,14 @@ packages = ["src/creditwatch"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "smoke: verificação rápida de instalação, configuração e CLIs",
+    "functional: fluxos de negócio ponta a ponta com dados sintéticos",
+    "regression: métricas do modelo versionado e consistência de configuração",
+    "security: SAST, segredos, privacidade (LGPD) e integridade do modelo",
+    "pentest: entradas maliciosas, abuso de arquivos e fuzzing",
+    "performance: orçamentos de tempo e carga",
+]
 
 [tool.ruff]
 line-length = 100
