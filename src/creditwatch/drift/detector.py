@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from creditwatch.drift.evidently_runner import run_evidently_drift
@@ -74,18 +75,18 @@ def _validate_data(
     for dataframe, label in (
         (reference, "referência"),
         (current, "lote atual"),
-    ):    
+    ):
         for column in required:
-            values = dataframe[column]
+            values = dataframe[column].to_numpy(dtype=float)
 
-            if not values.notna().all():
+            if not np.isfinite(values).any():
                 raise ValueError(
-                    f"Valores ausentes na coluna {column} ({label})"
+                    f"Nenhum valor finito disponível na coluna {column} ({label})"
                 )
 
-            if not values.map(lambda value: pd.notna(value) and abs(value) != float("inf")).all():
+            if np.isinf(values).any():
                 raise ValueError(
-                    f"Valores não finitos na coluna {column} ({label})"
+                    f"Valores infinitos na coluna {column} ({label})"
                 )
 
 def _classify_severity(
