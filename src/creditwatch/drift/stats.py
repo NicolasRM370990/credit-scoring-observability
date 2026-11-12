@@ -1,4 +1,3 @@
-
 """Estatísticas para monitoramento de data drift."""
 
 import numpy as np
@@ -49,12 +48,7 @@ def psi(
     reference_pct = np.clip(reference_pct, epsilon, None)
     current_pct = np.clip(current_pct, epsilon, None)
 
-    return float(
-        np.sum(
-            (current_pct - reference_pct)
-            * np.log(current_pct / reference_pct)
-        )
-    )
+    return float(np.sum((current_pct - reference_pct) * np.log(current_pct / reference_pct)))
 
 
 def ks_test(
