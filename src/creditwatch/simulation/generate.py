@@ -9,11 +9,13 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from creditwatch.contracts import validate_batch
 from creditwatch.simulation.scenarios import (
     apply_resample_mix,
+    apply_synthetic_labels,
     apply_transformations,
     load_scenario_config,
 )
@@ -22,8 +24,8 @@ SUPPORTED_SCENARIOS = {
     "no_drift",
     "covariate_moderate",
     "covariate_severe",
+    "concept_drift",
 }
-
 
 def _batch_seed(seed: int, batch_number: int) -> int:
     """Gera uma seed determinística para cada lote."""
@@ -65,8 +67,9 @@ def _get_batch_intensity(
 ) -> float:
     """Calcula a intensidade de drift para o lote atual."""
     transformations = scenario_config.get("transformations", [])
+    labels = scenario_config.get("labels")
 
-    if not transformations:
+    if not transformations and not labels:
         return 0.0
 
     ramp = scenario_config.get("ramp")
@@ -178,6 +181,44 @@ def generate_scenario(
         replace=False,
     )
 
+    labels_config = scenario_config.get("labels")
+
+    label_means = None
+    label_stds = None
+    label_medians = None
+
+    if labels_config is not None:
+        label_features = [
+            "revolving_utilization",
+            "age",
+            "past_due_30_59",
+            "debt_ratio",
+            "monthly_income",
+            "times_90_days_late",
+        ]
+
+        missing_features = set(label_features) - set(sampled_pool.columns)
+
+        if missing_features:
+            raise ValueError(
+                "Features ausentes para geração sintética: "
+                f"{sorted(missing_features)}"
+            )
+
+        label_data = sampled_pool[label_features].apply(
+            pd.to_numeric,
+            errors="raise",
+        )
+
+        if not np.isfinite(label_data.to_numpy(dtype=float)).all():
+            raise ValueError(
+                "As features para geração sintética devem ser finitas."
+            )
+
+        label_means = label_data.mean()
+        label_stds = label_data.std(ddof=0).replace(0, 1)
+        label_medians = label_data.median()
+
     generated_files: list[Path] = []
     manifest_batches: list[dict[str, Any]] = []
 
@@ -205,6 +246,31 @@ def generate_scenario(
                 df=batch,
                 transformations=transformations,
                 seed=batch_seed,
+            )
+
+        labels_config = scenario_config.get("labels")
+
+        if labels_config is not None:
+            if labels_config.get("mode") != "synthetic":
+                raise ValueError(
+                    "Modo de geração de rótulos não suportado: "
+                    f"{labels_config.get('mode')}"
+                )
+
+            logit_offset = labels_config.get("logit_offset")
+
+            if logit_offset is None:
+                raise ValueError(
+                    "A configuração de labels precisa informar logit_offset."
+                )
+
+            batch = apply_synthetic_labels(
+                df=batch,
+                logit_offset=logit_offset * intensity,
+                seed=batch_seed,
+                means=label_means,
+                stds=label_stds,
+                medians=label_medians,
             )
 
         batch_id = f"{scenario}_batch_{batch_number:02d}"
@@ -235,10 +301,18 @@ def generate_scenario(
                 "file": output_path.name,
                 "n_rows": len(batch),
                 "validation_status": result.status,
-                "seed": _batch_seed(seed, 0),
+                "seed": batch_seed,
                 "event_date": event_date.isoformat(),
                 "intensity": intensity,
                 "transformations": transformations,
+                "labels": (
+                    {
+                        "mode": labels_config["mode"],
+                        "logit_offset": labels_config["logit_offset"] * intensity,
+                    }
+                    if labels_config is not None
+                    else None
+                ),
             }
         )
 

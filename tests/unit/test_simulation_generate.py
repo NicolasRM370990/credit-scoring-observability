@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import date, timedelta
 from itertools import pairwise
@@ -209,3 +210,138 @@ def test_generate_covariate_severe_ramp(tmp_path, production_pool):
         assert income["factor"] == pytest.approx(1 + 0.40 * intensity)
         assert utilization["value"] == pytest.approx(0.30 * intensity)
         assert debt_ratio["factor"] == pytest.approx(1 + 0.60 * intensity)
+
+
+def test_apply_synthetic_labels_preserves_features(production_pool):
+    from creditwatch.simulation.scenarios import apply_synthetic_labels
+
+    result = apply_synthetic_labels(
+        df=production_pool,
+        logit_offset=0.8,
+        seed=42,
+    )
+
+    pd.testing.assert_frame_equal(
+        result.drop(columns="target"),
+        production_pool.drop(columns="target"),
+    )
+
+    assert set(result["target"].unique()).issubset({0, 1})
+    assert result["target"].dtype == "int8"
+
+
+def test_apply_synthetic_labels_is_reproducible(production_pool):
+    from creditwatch.simulation.scenarios import apply_synthetic_labels
+
+    first = apply_synthetic_labels(
+        df=production_pool,
+        logit_offset=0.8,
+        seed=42,
+    )
+
+    second = apply_synthetic_labels(
+        df=production_pool,
+        logit_offset=0.8,
+        seed=42,
+    )
+
+    pd.testing.assert_series_equal(first["target"], second["target"])
+
+
+def test_apply_synthetic_labels_does_not_modify_original(production_pool):
+    from creditwatch.simulation.scenarios import apply_synthetic_labels
+
+    original = production_pool.copy(deep=True)
+
+    apply_synthetic_labels(
+        df=production_pool,
+        logit_offset=0.8,
+        seed=42,
+    )
+
+    pd.testing.assert_frame_equal(production_pool, original)
+
+
+def test_generate_concept_drift(tmp_path, production_pool):
+    generated = generate_scenario(
+        pool=production_pool,
+        scenario="concept_drift",
+        config_path="config/drift_scenarios.yaml",
+        out_dir=tmp_path,
+    )
+
+    assert len(generated) == 4
+
+    for path in generated:
+        batch = pd.read_parquet(path)
+
+        assert len(batch) == 3000
+        assert set(batch["target"].unique()).issubset({0, 1})
+        assert pd.notna(batch["event_date"]).all()
+
+    manifest_path = (
+        tmp_path / "concept_drift" / "MANIFEST.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    intensities = [
+        batch["intensity"] for batch in manifest["batches"]
+    ]
+
+    assert intensities == pytest.approx([0.25, 0.50, 0.75, 1.0])
+
+    offsets = [
+        batch["labels"]["logit_offset"]
+        for batch in manifest["batches"]
+    ]
+
+    assert offsets == pytest.approx([0.2, 0.4, 0.6, 0.8])
+
+
+def test_generate_concept_drift_preserves_features(
+    tmp_path,
+    production_pool,
+):
+    config_path = "config/drift_scenarios.yaml"
+
+    generated = generate_scenario(
+        pool=production_pool,
+        scenario="concept_drift",
+        config_path=config_path,
+        out_dir=tmp_path,
+    )
+
+    seed = 42
+    batch_size = 3000
+    batches_count = 4
+
+    payload = f"{seed}:0".encode()
+    digest = hashlib.sha256(payload).digest()
+    sample_seed = int.from_bytes(digest[:4], byteorder="big")
+
+    expected = production_pool.sample(
+        n=batch_size * batches_count,
+        replace=False,
+        random_state=sample_seed,
+    ).drop(columns="target").reset_index(drop=True)
+
+    actual = pd.concat(
+        [pd.read_parquet(path) for path in generated],
+        ignore_index=True,
+    )
+
+    actual = actual.drop(
+        columns=["target", "event_date"]
+    ).reset_index(drop=True)
+
+    missing_columns = ["past_due_30_59", "times_90_days_late"]
+
+    expected_missing = expected[missing_columns].isna().sum()
+    actual_missing = actual[missing_columns].isna().sum()
+
+    pd.testing.assert_series_equal(
+        actual_missing,
+        expected_missing,
+    )
+
+    pd.testing.assert_frame_equal(actual, expected)

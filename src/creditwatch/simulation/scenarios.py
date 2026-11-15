@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from numbers import Real
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -370,3 +371,104 @@ def apply_scenario_transformations(
         transformations=transformations,
         seed=config["seed"],
     )
+
+
+def apply_synthetic_labels(
+    df: pd.DataFrame,
+    logit_offset: float,
+    seed: int,
+    means: pd.Series | None = None,
+    stds: pd.Series | None = None,
+    medians: pd.Series | None = None,
+) -> pd.DataFrame:
+    """Substitui target por rótulos sintéticos com uma relação X -> y alternativa."""
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("df deve ser um pandas.DataFrame.")
+
+    if df.empty:
+        raise ValueError("Não é possível gerar rótulos para um DataFrame vazio.")
+
+    if "target" not in df.columns:
+        raise ValueError("A coluna 'target' não existe no DataFrame.")
+
+    if isinstance(logit_offset, bool) or not isinstance(logit_offset, Real):
+        raise TypeError("logit_offset deve ser um número real.")
+
+    if not math.isfinite(float(logit_offset)):
+        raise ValueError("logit_offset deve ser finito.")
+
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise TypeError("seed deve ser um número inteiro.")
+
+    if not 0 <= seed <= 2**32 - 1:
+        raise ValueError("seed deve estar entre 0 e 4294967295.")
+
+    weights = {
+        "revolving_utilization": -0.8,
+        "age": 0.5,
+        "past_due_30_59": -0.7,
+        "debt_ratio": 0.8,
+        "monthly_income": 0.5,
+        "times_90_days_late": -1.0,
+    }
+
+    missing = set(weights) - set(df.columns)
+
+    if missing:
+        raise ValueError(
+            f"Features ausentes para gerar rótulos sintéticos: {sorted(missing)}"
+        )
+
+    features = df[list(weights)].apply(pd.to_numeric, errors="raise")
+
+    if np.isinf(features.to_numpy(dtype=float)).any():
+        raise ValueError("As features não podem conter valores infinitos.")
+
+    if means is None:
+        means = features.mean()
+
+    if stds is None:
+        stds = features.std(ddof=0).replace(0, 1)
+
+    if medians is None:
+        medians = features.median()
+
+    if not medians.index.equals(features.columns):
+        raise ValueError("medians deve conter as mesmas features e na mesma ordem.")
+
+    if not np.isfinite(medians.to_numpy(dtype=float)).all():
+        raise ValueError("medians deve conter valores finitos.")
+
+    features_for_labels = features.fillna(medians)
+
+    if not means.index.equals(features.columns):
+        raise ValueError("means deve conter as mesmas features e na mesma ordem.")
+
+    if not stds.index.equals(features.columns):
+        raise ValueError("stds deve conter as mesmas features e na mesma ordem.")
+
+    if (stds <= 0).any() or not np.isfinite(stds.to_numpy()).all():
+        raise ValueError("stds deve conter valores positivos e finitos.")
+
+    if not np.isfinite(means.to_numpy()).all():
+        raise ValueError("means deve conter valores finitos.")
+
+    standardized = (
+        (features_for_labels - means) / stds
+    ).clip(-3, 3)
+
+    coefficients = pd.Series(weights)
+    logits = standardized.mul(coefficients).sum(axis=1) + float(logit_offset)
+
+    probabilities = 1 / (1 + np.exp(-logits))
+
+    rng = np.random.default_rng(seed)
+    synthetic_target = rng.binomial(
+        n=1,
+        p=probabilities.to_numpy(),
+    ).astype("int8")
+
+    result = df.copy(deep=True)
+    result["target"] = synthetic_target
+
+    return result
