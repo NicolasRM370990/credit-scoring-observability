@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -32,9 +33,12 @@ def sha256_of(path: Path) -> str:
 def try_kaggle_download(raw_dir: Path) -> bool:
     """Tenta baixar via Kaggle CLI. Retorna False se não for possível."""
     raw_dir.mkdir(parents=True, exist_ok=True)
+    kaggle = shutil.which("kaggle")
+    if kaggle is None:
+        return False
     try:
         subprocess.run(
-            ["kaggle", "competitions", "download", "-c", KAGGLE_COMPETITION, "-p", str(raw_dir)],
+            [kaggle, "competitions", "download", "-c", KAGGLE_COMPETITION, "-p", str(raw_dir)],
             check=True,
         )
         zip_path = raw_dir / f"{KAGGLE_COMPETITION}.zip"

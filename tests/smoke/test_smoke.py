@@ -30,6 +30,11 @@ MODULES = [
     "creditwatch.simulation.generate",
     "creditwatch.simulation.scenarios",
     "creditwatch.pipeline.run",
+    "creditwatch.drift",
+    "creditwatch.drift.detector",
+    "creditwatch.drift.evidently_runner",
+    "creditwatch.drift.reports",
+    "creditwatch.drift.stats",
 ]
 
 CLIS = [

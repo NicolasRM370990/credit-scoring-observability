@@ -57,7 +57,9 @@ def score_batch(
     if collisions:
         raise ValueError(f"Lote já contém colunas de saída do scoring: {sorted(collisions)}")
     expected_hash = metadata.get("model_sha256")
-    if expected_hash and sha256_of(model_path) != expected_hash:
+    if not isinstance(expected_hash, str) or not expected_hash.strip():
+        raise ValueError("Metadata deve declarar 'model_sha256' do arquivo do modelo")
+    if sha256_of(model_path) != expected_hash:
         raise ValueError("SHA-256 do modelo não corresponde à metadata")
 
     model = joblib.load(model_path)

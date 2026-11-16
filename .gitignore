@@ -62,3 +62,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- Scripts auxiliares locais (geração de material de apresentação) ---
+docs/video/_build_pptx.py

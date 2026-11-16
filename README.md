@@ -60,8 +60,8 @@ Todas as suítes usam dados sintéticos e rodam sem o CSV do Kaggle. Cada tipo t
 
 | Suíte | Comando | Testes | O que verifica |
 |---|---|---:|---|
-| Unitários (existentes) | `make test` | 82 | contrato, simulação, preparo, treino, scoring, avaliação |
-| Smoke | `make test-smoke` | 27 | imports, YAMLs válidos, metadata do modelo, `--help` das CLIs, `--smoke` com log JSON dos 7 estágios |
+| Unitários | `uv run pytest -m "not smoke and not functional and not regression and not security and not pentest and not performance"` | 137 | contrato, simulação, drift, preparo, treino, scoring, avaliação |
+| Smoke | `make test-smoke` | 32 | imports (incluindo drift), YAMLs válidos, metadata do modelo, `--help` das CLIs, `--smoke` com log JSON dos 7 estágios |
 | Funcional | `make test-functional` | 14 | validar → pontuar → drift → métricas com modelo real; bloqueio antes do scoring; cenários de drift; viés por idade; relatório perf × drift |
 | Regressão | `make test-regression` | 14 | ROC-AUC ≥ `min_auc_test`, ganho sobre o dummy, validação ≈ teste, matriz de confusão, alinhamento contrato/features/alertas/cenários |
 | Segurança | `make test-security` | 64 | SAST por AST (`eval`/`exec`, `yaml.load`, `shell=True`, `pickle`), segredos nos arquivos versionados, `.gitignore`, LGPD (resultado e log sem valores de linha), modelo adulterado rejeitado, target nunca usado como feature |
@@ -69,20 +69,20 @@ Todas as suítes usam dados sintéticos e rodam sem o CSV do Kaggle. Cada tipo t
 | Performance | `make test-performance` | 5 | validação de 3 mil linhas < 5 s e de 200 mil < 30 s; scoring de 100 mil < 20 s; cenário severo < 60 s; latência estável |
 | Scanners | `make security-scan` | n/a | Bandit (SAST) e pip-audit (CVEs das dependências) |
 
-### Resultado da execução (12/11/2026, Windows, Python 3.12)
+### Resultado da execução (16/11/2026, Windows, Python 3.12)
 
-- **pytest:** 277 aprovados, 1 pulado (`test_prepare` sem o CSV bruto) e 1 `xfail` (achado abaixo), em 61 s. Ruff sem apontamentos.
-- **Cobertura:** 75% de `src/creditwatch` (`interfaces` 100%, `contracts/validate` 91%, `simulation/generate` 88%; o mais baixo é `data/download`, com 22%, porque depende do Kaggle).
-- **Bandit:** nenhum achado médio ou alto. São 3 de severidade baixa, todos na chamada `subprocess` da CLI do Kaggle em `data/download.py`, que já usa lista de argumentos e não usa shell.
-- **pip-audit:** 4 CVEs no `pyasn1` 0.6.4 (CVE-2026-119194 a 119197), corrigidas na 0.6.5. A dependência é transitiva: `mlflow` → `databricks-sdk` → `google-auth` → `pyasn1-modules`.
+- **pytest:** 338 aprovados e 1 pulado (`test_prepare` sem o CSV bruto), em 45 s. Ruff sem apontamentos. O `xfail` do hash do modelo saiu depois da correção.
+- **Cobertura:** 75% de `src/creditwatch`, medida em 12/11 antes do módulo de drift.
+- **Bandit:** nenhum achado médio ou alto. Restam 2 de severidade baixa em `data/download.py`: import de `subprocess` (B404) e a chamada que baixa o dataset (B603). O executável do Kaggle passou a ser resolvido com `shutil.which` (B607).
+- **pip-audit:** as 4 CVEs do `pyasn1` 0.6.4 saíram com a atualização para 0.6.5. Resta `opentelemetry-api` 1.45.1 (CVE-2026-126360, correção na 1.45.2), dependência transitiva do MLflow.
 
-### Achados para corrigir
+### Correções aplicadas em 16/11
 
-| Gravidade | Achado | Evidência | Correção sugerida |
-|---|---|---|---|
-| Alta | `score_batch` só confere o SHA-256 se a metadata tiver `model_sha256`. Sem esse campo, o `.joblib` é desserializado sem verificação, e um modelo malicioso executa código | `tests/pentest/test_pentest.py::test_metadata_without_hash_must_not_load_untrusted_model` (`xfail` estrito) | Tornar `model_sha256` obrigatório em `model/predict.py`. Quando corrigido, o `xfail` vira falha e o marcador deve sair |
-| Média | `pyasn1` 0.6.4 com CVEs conhecidas | pip-audit | `uv lock --upgrade-package pyasn1` |
-| Baixa | CLI do Kaggle chamada pelo nome, resolvida pelo `PATH` (Bandit B607) | Bandit | Resolver o executável com `shutil.which` e falhar se não existir |
+| Gravidade | Ajuste |
+|---|---|
+| Alta | `score_batch` exige `model_sha256` e confere o arquivo antes de carregar o modelo |
+| Média | `pyasn1` atualizado para 0.6.5 no `uv.lock` |
+| Baixa | CLI do Kaggle resolvida com `shutil.which`; se não existir, o download não é tentado |
 
 ## Integrantes
 
