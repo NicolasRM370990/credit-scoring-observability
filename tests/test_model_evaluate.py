@@ -41,3 +41,88 @@ def test_evaluate_predictions_rejects_invalid_inputs(y_true, scores, threshold):
 def test_select_threshold_requires_both_classes():
     with pytest.raises(ValueError, match="duas classes"):
         select_threshold(np.array([0, 0]), np.array([0.1, 0.2]))
+
+
+import pandas as pd
+
+from creditwatch.model.evaluate import evaluate_labeled_batches
+
+
+class FakeModel:
+    def predict_proba(self, features):
+        scores = features["feature"].to_numpy(dtype=float)
+        return np.column_stack((1 - scores, scores))
+
+
+def test_evaluate_labeled_batches_associates_drift_by_batch():
+    reference = pd.DataFrame(
+        {
+            "feature": [0.1, 0.2, 0.8, 0.9],
+            "target": [0, 0, 1, 1],
+        }
+    )
+
+    batches = {
+        "batch_01": pd.DataFrame(
+            {
+                "feature": [0.1, 0.2, 0.8, 0.9],
+                "target": [0, 0, 1, 1],
+            }
+        ),
+        "batch_02": pd.DataFrame(
+            {
+                "feature": [0.2, 0.3, 0.7, 0.8],
+                "target": [0, 0, 1, 1],
+            }
+        ),
+    }
+
+    drift_by_batch = {
+        "batch_01": {
+            "drift_detected": False,
+            "drift_share": 0.0,
+            "score_psi": 0.003,
+            "score_ks": 0.02,
+            "mean_score_ref": 0.5,
+            "mean_score_cur": 0.51,
+        },
+        "batch_02": {
+            "drift_detected": True,
+            "drift_share": 0.4,
+            "score_psi": 0.15,
+            "score_ks": 0.12,
+            "mean_score_ref": 0.5,
+            "mean_score_cur": 0.65,
+        },
+    }
+
+    results = evaluate_labeled_batches(
+        model=FakeModel(),
+        reference=reference,
+        batches=batches,
+        features=["feature"],
+        target="target",
+        threshold=0.5,
+        drift_by_batch=drift_by_batch,
+    )
+
+    assert results[0]["batch_id"] == "reference"
+    assert results[0]["drift_detected"] is False
+
+    assert results[1]["drift_detected"] is False
+    assert results[1]["drift_share"] == pytest.approx(0.0)
+    assert results[1]["score_psi"] == pytest.approx(0.003)
+    assert results[1]["score_ks"] == pytest.approx(0.02)
+    assert results[1]["mean_score_ref"] == pytest.approx(0.5)
+    assert results[1]["mean_score_cur"] == pytest.approx(0.51)
+
+    assert results[2]["drift_detected"] is True
+    assert results[2]["drift_share"] == pytest.approx(0.4)
+    assert results[2]["score_psi"] == pytest.approx(0.15)
+    assert results[2]["score_ks"] == pytest.approx(0.12)
+    assert results[2]["mean_score_ref"] == pytest.approx(0.5)
+    assert results[2]["mean_score_cur"] == pytest.approx(0.65)
+
+    assert results[1]["positive_rate"] == pytest.approx(0.5)
+    assert results[2]["roc_auc"] == pytest.approx(1.0)
+    assert results[2]["pr_auc"] == pytest.approx(1.0)

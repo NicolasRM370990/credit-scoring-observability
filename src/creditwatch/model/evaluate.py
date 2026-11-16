@@ -1,4 +1,5 @@
 """Métricas e seleção de threshold para classificação binária."""
+
 from __future__ import annotations
 
 import argparse
@@ -14,6 +15,10 @@ from sklearn.metrics import (
     confusion_matrix,
     roc_auc_score,
 )
+
+from creditwatch.drift.detector import detect_drift
+from creditwatch.interfaces import DriftThresholds, RunContext
+from creditwatch.model.predict import score_batch
 
 CONFIG_PATH = Path("config/data.yaml")
 
@@ -88,7 +93,9 @@ def evaluate_predictions(
     }
 
 
-def evaluate_split(model, frame: pd.DataFrame, features: list[str], target: str, threshold: float) -> dict:
+def evaluate_split(
+    model, frame: pd.DataFrame, features: list[str], target: str, threshold: float
+) -> dict:
     missing = set(features + [target]) - set(frame.columns)
     if missing:
         raise ValueError(f"Colunas ausentes para avaliação: {sorted(missing)}")
@@ -116,42 +123,100 @@ def evaluate_labeled_batches(
     features: list[str],
     target: str,
     threshold: float,
-    drift_by_batch: dict[str, bool] | None = None,
+    drift_by_batch: dict[str, dict] | None = None,
 ) -> list[dict]:
     """Compara desempenho de referência e lotes rotulados por cenário."""
-    results = [{
-        "batch_id": "reference",
-        "scenario": "reference",
-        "drift_detected": False,
-        **evaluate_split(model, reference, features, target, threshold),
-    }]
+    results = [
+        {
+            "batch_id": "reference",
+            "scenario": "reference",
+            "drift_detected": False,
+            **evaluate_split(model, reference, features, target, threshold),
+        }
+    ]
+
     for batch_id, frame in batches.items():
-        results.append({
-            "batch_id": batch_id,
-            "scenario": batch_id.split("_batch_")[0],
-            "drift_detected": (drift_by_batch or {}).get(batch_id),
-            **evaluate_with_labels(model, frame, features, target, threshold),
-        })
+        drift_info = (drift_by_batch or {}).get(batch_id, {})
+
+        results.append(
+            {
+                "batch_id": batch_id,
+                "scenario": batch_id.split("_batch_")[0],
+                "drift_detected": drift_info.get("drift_detected"),
+                "drift_share": drift_info.get("drift_share"),
+                "score_psi": drift_info.get("score_psi"),
+                "score_ks": drift_info.get("score_ks"),
+                "mean_score_ref": drift_info.get("mean_score_ref"),
+                "mean_score_cur": drift_info.get("mean_score_cur"),
+                **evaluate_with_labels(model, frame, features, target, threshold),
+            }
+        )
+
     return results
 
 
 def write_perf_vs_drift(results: list[dict], output: Path) -> None:
     """Grava tabela Markdown comparando detecção e desempenho rotulado."""
-    columns = ("scenario", "batch_id", "drift_detected", "roc_auc", "pr_auc", "ks", "brier")
+
+    columns = (
+        "scenario",
+        "batch_id",
+        "drift_detected",
+        "drift_share",
+        "score_psi",
+        "score_ks",
+        "mean_score_ref",
+        "mean_score_cur",
+        "positive_rate",
+        "roc_auc",
+        "pr_auc",
+        "brier",
+    )
+
+    headers = (
+        "Cenário",
+        "Lote",
+        "Drift detectado",
+        "Drift share",
+        "Score PSI",
+        "Score KS",
+        "Score médio ref.",
+        "Score médio atual",
+        "Taxa positiva",
+        "ROC-AUC",
+        "PR-AUC",
+        "Brier",
+    )
+
     lines = [
         "# Desempenho rotulado × drift",
         "",
-        "As métricas de desempenho exigem rótulos observados. `drift_detected` vem do resultado do detector;",
-        "a comparação não interpreta drift como causa de degradação.",
+        (
+            "As métricas de desempenho exigem rótulos observados. "
+            "`drift_detected` vem do resultado do detector; "
+            "a comparação não interpreta drift como causa de degradação."
+        ),
         "",
-        "| Cenário | Lote | Drift detectado | ROC-AUC | PR-AUC | KS | Brier |",
-        "|---|---|---:|---:|---:|---:|---:|",
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join(["---"] * len(headers)) + " |",
     ]
+
     for row in results:
         values = [row.get(column) for column in columns]
+
         values[2] = "não informado" if values[2] is None else ("sim" if values[2] else "não")
-        values[3:] = ["n/a" if value is None else f"{float(value):.4f}" for value in values[3:]]
-        lines.append("| " + " | ".join(map(str, values)) + " |")
+
+        formatted = [
+            "n/a"
+            if value is None
+            else (
+                f"{float(value):.4f}" if isinstance(value, (int, float, np.number)) else str(value)
+            )
+            for value in values
+        ]
+
+        lines.append("| " + " | ".join(formatted) + " |")
+
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -165,7 +230,9 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="Opcional: salva métricas JSON neste caminho")
     parser.add_argument("--labeled-dir", type=Path, help="Diretório de lotes rotulados de produção")
     parser.add_argument(
-        "--perf-report", type=Path, default=Path("docs/evidence/perf_vs_drift.md"),
+        "--perf-report",
+        type=Path,
+        default=Path("docs/evidence/perf_vs_drift.md"),
         help="Relatório comparativo Markdown para --labeled-dir",
     )
     args = parser.parse_args()
@@ -176,15 +243,67 @@ def main() -> int:
     cfg = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
     frame = pd.read_parquet(args.split)
     model = joblib.load(args.model)
+
     if args.labeled_dir:
         batch_frames = {
-            path.stem: pd.read_parquet(path)
-            for path in sorted(args.labeled_dir.glob("*.parquet"))
+            path.stem: pd.read_parquet(path) for path in sorted(args.labeled_dir.glob("*.parquet"))
         }
+
+        # Referência independente para detecção de drift.
+        reference_drift = pd.read_parquet(Path("data/processed/reference_train.parquet"))
+
+        scored_reference = score_batch(
+            reference_drift,
+            args.model,
+            args.metadata,
+        )
+
+        threshold_config = yaml.safe_load(
+            Path("config/drift_thresholds.yaml").read_text(encoding="utf-8")
+        )
+        drift_thresholds = DriftThresholds(**threshold_config)
+
+        drift_by_batch = {}
+
+        for batch_id, batch_frame in batch_frames.items():
+            scored_batch = score_batch(
+                batch_frame,
+                args.model,
+                args.metadata,
+            )
+
+            context = RunContext(
+                run_id=f"evaluate_{batch_id}",
+                batch_id=batch_id,
+                scenario=batch_id.split("_batch_")[0],
+            )
+
+            drift_result = detect_drift(
+                reference=scored_reference,
+                current=scored_batch,
+                cfg=drift_thresholds,
+                ctx=context,
+            )
+
+            drift_by_batch[batch_id] = {
+                "drift_detected": drift_result.dataset_drift,
+                "drift_share": drift_result.drift_share,
+                "score_psi": drift_result.prediction_drift.score_psi,
+                "score_ks": drift_result.prediction_drift.score_ks,
+                "mean_score_ref": drift_result.prediction_drift.mean_score_ref,
+                "mean_score_cur": drift_result.prediction_drift.mean_score_cur,
+            }
+
         if not batch_frames:
             raise FileNotFoundError(f"Nenhum lote Parquet rotulado em {args.labeled_dir}")
         results = evaluate_labeled_batches(
-            model, frame, batch_frames, metadata["features"], cfg["target"], metadata["threshold"]
+            model,
+            frame,
+            batch_frames,
+            metadata["features"],
+            cfg["target"],
+            metadata["threshold"],
+            drift_by_batch=drift_by_batch,
         )
         write_perf_vs_drift(results, args.perf_report)
         print(json.dumps(results, indent=2, ensure_ascii=False))

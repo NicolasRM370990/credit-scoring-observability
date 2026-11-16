@@ -1,4 +1,5 @@
 """Testes funcionais: fluxos de negócio ponta a ponta com dados sintéticos e modelo real."""
+
 from __future__ import annotations
 
 import json
@@ -130,8 +131,22 @@ def test_perf_vs_drift_report_is_written(trained_model, tmp_path):
     model_path, _ = trained_model
     batches = {"covariate_severe_batch_01": make_credit_frame(1_000, seed=3)}
     results = evaluate_labeled_batches(
-        joblib.load(model_path), make_credit_frame(1_000, seed=4), batches, FEATURES, "target", 0.3,
-        drift_by_batch={"covariate_severe_batch_01": True},
+        joblib.load(model_path),
+        make_credit_frame(1_000, seed=4),
+        batches,
+        FEATURES,
+        "target",
+        0.3,
+        drift_by_batch={
+            "covariate_severe_batch_01": {
+                "drift_detected": True,
+                "drift_share": 0.4,
+                "score_psi": 0.15,
+                "score_ks": 0.12,
+                "mean_score_ref": 0.07,
+                "mean_score_cur": 0.12,
+            }
+        },
     )
     report = tmp_path / "perf.md"
 
@@ -154,11 +169,17 @@ class Recorder:
 
 def _fake_drift(reference, current, thresholds, ctx):
     return DriftResult(
-        run_id=ctx.run_id, batch_id=ctx.batch_id, scenario=ctx.scenario,
-        reference_rows=len(reference), current_rows=len(current), dataset_drift=False,
+        run_id=ctx.run_id,
+        batch_id=ctx.batch_id,
+        scenario=ctx.scenario,
+        reference_rows=len(reference),
+        current_rows=len(current),
+        dataset_drift=False,
         drift_share=0.0,
         features=[
-            FeatureDrift(name=name, psi=0.01, ks_stat=0.02, ks_pvalue=0.9, drifted=False, severity="OK")
+            FeatureDrift(
+                name=name, psi=0.01, ks_stat=0.02, ks_pvalue=0.9, drifted=False, severity="OK"
+            )
             for name in FEATURES
         ],
         prediction_drift=PredictionDrift(
@@ -252,3 +273,43 @@ def test_thresholds_config_matches_contract_model(pipeline_workspace):
 
     assert isinstance(thresholds, DriftThresholds)
     assert thresholds.psi_warn < thresholds.psi_critical
+
+
+def test_run_batch_records_alert_counts_after_evaluation(
+    pipeline_workspace,
+):
+    batch_path = pipeline_workspace / "batch_alerts.parquet"
+    make_credit_frame(1_200, seed=23).drop(columns="target").to_parquet(batch_path, index=False)
+
+    components = _components(lambda path, ctx: pd.read_parquet(path))
+
+    def fake_alerts(validation, drift, metrics):
+        metrics.n_alerts_warning = 2
+        metrics.n_alerts_critical = 1
+        return [
+            object(),
+            object(),
+            object(),
+        ]
+
+    components["alerts"] = Recorder()
+    components["alerts"].result = None
+
+    def evaluate_and_update(validation, drift, metrics):
+        fake_alerts(validation, drift, metrics)
+        return [object(), object(), object()]
+
+    components["alerts"] = evaluate_and_update
+
+    code = pipeline.run_batch(
+        batch_path,
+        "no_drift",
+        components,
+    )
+
+    assert code == 0
+
+    recorded_metrics = components["metrics"].calls[0][0]
+
+    assert recorded_metrics.n_alerts_warning == 2
+    assert recorded_metrics.n_alerts_critical == 1

@@ -34,18 +34,13 @@ def apply_scale(
     try:
         result[feature] = pd.to_numeric(result[feature], errors="raise") * factor
     except (ValueError, TypeError) as exc:
-        raise ValueError(
-            f"A coluna '{feature}' deve conter valores numéricos."
-        ) from exc
+        raise ValueError(f"A coluna '{feature}' deve conter valores numéricos.") from exc
 
     if clip is not None:
         if (
             not isinstance(clip, (tuple, list))
             or len(clip) != 2
-            or any(
-                isinstance(value, bool) or not isinstance(value, Real)
-                for value in clip
-            )
+            or any(isinstance(value, bool) or not isinstance(value, Real) for value in clip)
         ):
             raise ValueError("clip deve conter dois valores numéricos.")
 
@@ -415,15 +410,11 @@ def apply_synthetic_labels(
     missing = set(weights) - set(df.columns)
 
     if missing:
-        raise ValueError(
-            f"Features ausentes para gerar rótulos sintéticos: {sorted(missing)}"
-        )
+        raise ValueError(f"Features ausentes para gerar rótulos sintéticos: {sorted(missing)}")
 
     features = df[list(weights)].apply(pd.to_numeric, errors="raise")
 
-    if np.isinf(features.to_numpy(dtype=float)).any():
-        raise ValueError("As features não podem conter valores infinitos.")
-
+    # Estatísticas calculadas ignorando valores ausentes.
     if means is None:
         means = features.mean()
 
@@ -433,29 +424,28 @@ def apply_synthetic_labels(
     if medians is None:
         medians = features.median()
 
-    if not medians.index.equals(features.columns):
-        raise ValueError("medians deve conter as mesmas features e na mesma ordem.")
+    # Validar estrutura das estatísticas.
+    for name, values in (
+        ("means", means),
+        ("stds", stds),
+        ("medians", medians),
+    ):
+        if not values.index.equals(features.columns):
+            raise ValueError(f"{name} deve conter as mesmas features e na mesma ordem.")
 
-    if not np.isfinite(medians.to_numpy(dtype=float)).all():
-        raise ValueError("medians deve conter valores finitos.")
+        if not np.isfinite(values.to_numpy(dtype=float)).all():
+            raise ValueError(f"{name} deve conter valores finitos.")
 
+    if (stds <= 0).any():
+        raise ValueError("stds deve conter valores positivos.")
+
+    # Imputação somente na cópia usada para gerar os rótulos.
     features_for_labels = features.fillna(medians)
 
-    if not means.index.equals(features.columns):
-        raise ValueError("means deve conter as mesmas features e na mesma ordem.")
+    if not np.isfinite(features_for_labels.to_numpy(dtype=float)).all():
+        raise ValueError("As features imputadas devem conter apenas valores finitos.")
 
-    if not stds.index.equals(features.columns):
-        raise ValueError("stds deve conter as mesmas features e na mesma ordem.")
-
-    if (stds <= 0).any() or not np.isfinite(stds.to_numpy()).all():
-        raise ValueError("stds deve conter valores positivos e finitos.")
-
-    if not np.isfinite(means.to_numpy()).all():
-        raise ValueError("means deve conter valores finitos.")
-
-    standardized = (
-        (features_for_labels - means) / stds
-    ).clip(-3, 3)
+    standardized = ((features_for_labels - means) / stds).clip(-3, 3)
 
     coefficients = pd.Series(weights)
     logits = standardized.mul(coefficients).sum(axis=1) + float(logit_offset)

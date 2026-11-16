@@ -1,4 +1,3 @@
-
 """Geração de lotes sintéticos para cenários de drift."""
 
 from __future__ import annotations
@@ -26,6 +25,7 @@ SUPPORTED_SCENARIOS = {
     "covariate_severe",
     "concept_drift",
 }
+
 
 def _batch_seed(seed: int, batch_number: int) -> int:
     """Gera uma seed determinística para cada lote."""
@@ -75,9 +75,7 @@ def _get_batch_intensity(
     ramp = scenario_config.get("ramp")
 
     if ramp != "linear":
-        raise ValueError(
-            f"Ramp não suportado para o cenário: {ramp}"
-        )
+        raise ValueError(f"Ramp não suportado para o cenário: {ramp}")
 
     return batch_number / batches_count
 
@@ -129,9 +127,7 @@ def generate_scenario(
         raise ValueError(f"Cenário não encontrado: {scenario}")
 
     if scenario not in SUPPORTED_SCENARIOS:
-        raise ValueError(
-            f"O cenário '{scenario}' não está disponível nesta etapa."
-        )
+        raise ValueError(f"O cenário '{scenario}' não está disponível nesta etapa.")
 
     scenario_config = scenarios[scenario]
 
@@ -143,9 +139,7 @@ def generate_scenario(
     try:
         start_date = date.fromisoformat(start_date_value)
     except ValueError as exc:
-        raise ValueError(
-            "start_date inválida. Utilize o formato YYYY-MM-DD."
-        ) from exc
+        raise ValueError("start_date inválida. Utilize o formato YYYY-MM-DD.") from exc
 
     batches_count = scenario_config.get("batches")
     batch_size = config.get("batch_size")
@@ -167,8 +161,7 @@ def generate_scenario(
 
     if required_rows > len(pool):
         raise ValueError(
-            f"Pool insuficiente: necessários {required_rows} registros, "
-            f"disponíveis {len(pool)}."
+            f"Pool insuficiente: necessários {required_rows} registros, disponíveis {len(pool)}."
         )
 
     output_dir = Path(out_dir) / scenario
@@ -201,8 +194,7 @@ def generate_scenario(
 
         if missing_features:
             raise ValueError(
-                "Features ausentes para geração sintética: "
-                f"{sorted(missing_features)}"
+                f"Features ausentes para geração sintética: {sorted(missing_features)}"
             )
 
         label_data = sampled_pool[label_features].apply(
@@ -210,10 +202,11 @@ def generate_scenario(
             errors="raise",
         )
 
-        if not np.isfinite(label_data.to_numpy(dtype=float)).all():
-            raise ValueError(
-                "As features para geração sintética devem ser finitas."
-            )
+        # Rejeita infinitos, mas permite NaN.
+        # Os NaNs serão tratados posteriormente por apply_synthetic_labels,
+        # utilizando as medianas apenas na cópia interna das features.
+        if np.isinf(label_data.to_numpy(dtype=float)).any():
+            raise ValueError("As features para geração sintética não podem conter infinitos.")
 
         label_means = label_data.mean()
         label_stds = label_data.std(ddof=0).replace(0, 1)
@@ -253,16 +246,13 @@ def generate_scenario(
         if labels_config is not None:
             if labels_config.get("mode") != "synthetic":
                 raise ValueError(
-                    "Modo de geração de rótulos não suportado: "
-                    f"{labels_config.get('mode')}"
+                    f"Modo de geração de rótulos não suportado: {labels_config.get('mode')}"
                 )
 
             logit_offset = labels_config.get("logit_offset")
 
             if logit_offset is None:
-                raise ValueError(
-                    "A configuração de labels precisa informar logit_offset."
-                )
+                raise ValueError("A configuração de labels precisa informar logit_offset.")
 
             batch = apply_synthetic_labels(
                 df=batch,
@@ -282,10 +272,7 @@ def generate_scenario(
         )
 
         if result.status == "BLOCKED":
-            raise ValueError(
-                f"Lote {batch_id} bloqueado pelo contrato: "
-                f"{result.model_dump_json()}"
-            )
+            raise ValueError(f"Lote {batch_id} bloqueado pelo contrato: {result.model_dump_json()}")
 
         # A coluna é adicionada após a validação do contrato.
         batch["event_date"] = pd.Timestamp(event_date)

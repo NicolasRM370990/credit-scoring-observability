@@ -1,4 +1,5 @@
 """CLI de integração e smoke test do pipeline CreditWatch."""
+
 from __future__ import annotations
 
 import argparse
@@ -24,13 +25,28 @@ STAGES = CONTRACT_STAGES
 SCENARIOS = ("no_drift", "covariate_moderate", "covariate_severe")
 
 
-def _write_event(run_id: str, batch_id: str, stage: str, status: str, detail: str) -> None:
+def _write_event(
+    run_id: str,
+    batch_id: str,
+    stage: str,
+    status: str,
+    detail: str,
+    event_name: str = "stage_finished",
+) -> None:
     """Emite o contrato mínimo de log JSON usado no smoke de integração."""
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     event = {
-        "ts": datetime.now(UTC).isoformat(), "level": "INFO" if status == "ok" else "WARNING",
-        "run_id": run_id, "batch_id": batch_id, "stage": stage, "event": "stage_finished",
-        "status": status, "duration_ms": 0, "n_rows": 0, "message": detail, "extra": {},
+        "ts": datetime.now(UTC).isoformat(),
+        "level": "INFO" if status == "ok" else "WARNING",
+        "run_id": run_id,
+        "batch_id": batch_id,
+        "stage": stage,
+        "event": event_name,
+        "status": status,
+        "duration_ms": 0,
+        "n_rows": 0,
+        "message": detail,
+        "extra": {},
     }
     with LOG_PATH.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(event, ensure_ascii=False) + "\n")
@@ -41,7 +57,9 @@ def run_smoke() -> int:
     run_id, batch_id = f"smoke_{uuid4().hex[:10]}", "smoke_batch"
     for stage in STAGES:
         _write_event(run_id, batch_id, stage, "ok", "smoke component")
-    print(json.dumps({"run_id": run_id, "batch_id": batch_id, "stages": STAGES, "log": str(LOG_PATH)}))
+    print(
+        json.dumps({"run_id": run_id, "batch_id": batch_id, "stages": STAGES, "log": str(LOG_PATH)})
+    )
     return 0
 
 
@@ -101,17 +119,30 @@ def run_batch(
         _write_event(context.run_id, batch_id, "ingest", "warn", "contract rejected batch")
         _write_event(context.run_id, batch_id, "validate", "warn", "scoring skipped")
         rejected_metrics = RunMetrics(
-            run_id=context.run_id, batch_id=batch_id, scenario=scenario,
-            model_version=model_cfg["model_version"], pipeline_status="blocked",
-            rows_rejected=1, validation_blocked=True,
+            run_id=context.run_id,
+            batch_id=batch_id,
+            scenario=scenario,
+            model_version=model_cfg["model_version"],
+            pipeline_status="blocked",
+            rows_rejected=1,
+            validation_blocked=True,
             latency_s={"total": time.perf_counter() - started},
         )
+        components["alerts"](None, None, rejected_metrics)
         components["metrics"](rejected_metrics)
         components["mlflow"](rejected_metrics)
-        components["alerts"](None, None, rejected_metrics)
         _write_event(context.run_id, batch_id, "pipeline", "ok", "blocked run recorded")
         _write_event(context.run_id, batch_id, "alert", "ok", "validation alert emitted")
-        print(json.dumps({"run_id": context.run_id, "batch_id": batch_id, "status": "blocked", "exit_code": 2}))
+        print(
+            json.dumps(
+                {
+                    "run_id": context.run_id,
+                    "batch_id": batch_id,
+                    "status": "blocked",
+                    "exit_code": 2,
+                }
+            )
+        )
         return 2
     _write_event(context.run_id, batch_id, "ingest", "ok", "batch accepted")
 
@@ -119,15 +150,19 @@ def run_batch(
     if validation.status == "BLOCKED":
         _write_event(context.run_id, batch_id, "validate", "warn", "scoring skipped")
         rejected_metrics = RunMetrics(
-            run_id=context.run_id, batch_id=batch_id, scenario=scenario,
-            model_version=model_cfg["model_version"], pipeline_status="blocked",
-            rows_in=len(frame), rows_rejected=validation.n_rows_failed,
+            run_id=context.run_id,
+            batch_id=batch_id,
+            scenario=scenario,
+            model_version=model_cfg["model_version"],
+            pipeline_status="blocked",
+            rows_in=len(frame),
+            rows_rejected=validation.n_rows_failed,
             validation_blocked=True,
             latency_s={"total": time.perf_counter() - started},
         )
+        components["alerts"](validation, None, rejected_metrics)
         components["metrics"](rejected_metrics)
         components["mlflow"](rejected_metrics)
-        components["alerts"](validation, None, rejected_metrics)
         _write_event(context.run_id, batch_id, "pipeline", "ok", "blocked run recorded")
         _write_event(context.run_id, batch_id, "alert", "ok", "validation alert emitted")
         return 2
@@ -155,21 +190,27 @@ def run_batch(
 
     elapsed = time.perf_counter() - started
     metrics = RunMetrics(
-        run_id=context.run_id, batch_id=batch_id, scenario=scenario,
-        model_version=model_cfg["model_version"], pipeline_status="ok",
-        rows_in=len(frame), rows_valid=len(frame), latency_s={"total": elapsed},
+        run_id=context.run_id,
+        batch_id=batch_id,
+        scenario=scenario,
+        model_version=model_cfg["model_version"],
+        pipeline_status="ok",
+        rows_in=len(frame),
+        rows_valid=len(frame),
+        latency_s={"total": elapsed},
         drift_share=drift.drift_share,
         psi={item.name: item.psi for item in drift.features},
         ks={item.name: item.ks_stat for item in drift.features},
         score_mean=float(scored["score"].mean()),
         score_psi=drift.prediction_drift.score_psi if drift.prediction_drift else None,
     )
+    alerts = components["alerts"](validation, drift, metrics)
+
     components["metrics"](metrics)
     components["mlflow"](metrics)
+
     _write_event(context.run_id, batch_id, "pipeline", "ok", "run metrics recorded")
-    alerts = components["alerts"](validation, drift, metrics)
     _write_event(context.run_id, batch_id, "alert", "ok", f"{len(alerts)} alerts")
-    print(json.dumps({"run_id": context.run_id, "batch_id": batch_id, "status": "ok", "alerts": len(alerts)}))
     return 0
 
 
@@ -216,9 +257,11 @@ def main() -> int:
     if args.batch:
         return run_batch(args.batch, args.scenario or "manual")
     if args.demo_video:
-        return 0 if all(
-            _run_scenario(name, deterministic=True) == 0 for name in (*SCENARIOS, "invalid")
-        ) else 3
+        return (
+            0
+            if all(_run_scenario(name, deterministic=True) == 0 for name in (*SCENARIOS, "invalid"))
+            else 3
+        )
     if args.scenario:
         return _run_scenario(args.scenario)
     parser.error("informe --smoke, --batch, --scenario ou --demo-video")
