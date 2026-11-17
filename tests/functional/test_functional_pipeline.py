@@ -22,6 +22,7 @@ from creditwatch.interfaces import (
 from creditwatch.model.evaluate import evaluate_labeled_batches, write_perf_vs_drift
 from creditwatch.model.fairness import analyze_age_groups, render_report
 from creditwatch.model.predict import score_batch
+from creditwatch.observability import alerts as alert_engine
 from creditwatch.pipeline import run as pipeline
 from creditwatch.simulation.generate import generate_scenario
 
@@ -313,3 +314,55 @@ def test_run_batch_records_alert_counts_after_evaluation(
 
     assert recorded_metrics.n_alerts_warning == 2
     assert recorded_metrics.n_alerts_critical == 1
+
+
+def test_run_batch_persists_real_alerts_for_blocked_batch(
+    pipeline_workspace,
+    monkeypatch,
+):
+    batch_path = pipeline_workspace / "batch_blocked.parquet"
+
+    batch = make_credit_frame(1_200, seed=24).drop(columns="target")
+    batch.loc[0, "age"] = 17
+    batch.to_parquet(batch_path, index=False)
+
+    alerts_log = pipeline_workspace / "artifacts" / "alerts" / "alerts.jsonl"
+
+    monkeypatch.setattr(
+        alert_engine,
+        "ALERTS_LOG_PATH",
+        alerts_log,
+    )
+
+    components = _components(lambda path, ctx: pd.read_parquet(path))
+
+    # Utiliza o motor real, sem simular a avaliação dos alertas.
+    components["alerts"] = alert_engine.evaluate_alerts
+
+    code = pipeline.run_batch(
+        batch_path,
+        "invalid",
+        components,
+    )
+
+    assert code == 2
+
+    # Verifica a persistência do alerta.
+    assert alerts_log.is_file()
+
+    records = [json.loads(line) for line in alerts_log.read_text(encoding="utf-8").splitlines()]
+
+    assert len(records) == 1
+
+    alert = records[0]
+
+    assert alert["rule_id"] == "A01_VALIDATION_BLOCKED"
+    assert alert["severity"] == "CRITICAL"
+    assert alert["batch_id"] == "batch_blocked"
+
+    # Verifica os contadores registrados pelo pipeline.
+    metrics = components["metrics"].calls[0][0]
+
+    assert metrics.validation_blocked is True
+    assert metrics.n_alerts_critical == 1
+    assert metrics.n_alerts_warning == 0

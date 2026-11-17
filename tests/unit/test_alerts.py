@@ -88,11 +88,11 @@ def drift_result():
             mean_score_cur=0.5,
         ),
         thresholds=DriftThresholds(
-            psi_warn=0.10,
-            psi_critical=0.25,
-            ks_stat_min=0.10,
-            drift_share_alert=0.30,
-        ),
+        psi_warn=0.015639,
+        psi_critical=0.017247,
+        ks_stat_min=0.042700,
+        drift_share_alert=0.30,
+      ),
     )
 
 
@@ -113,7 +113,7 @@ rules:
   A03_FEATURE_PSI:
     severity: CRITICAL
     metric: psi
-    threshold: 0.25
+    threshold: 0.017247
   A04_LATENCY:
     severity: WARNING
     metric: latency_total_s
@@ -210,7 +210,7 @@ def test_a03_feature_psi_generates_critical_alert(
     drift_result,
     alert_environment,
 ):
-    drift_result.features[0].psi = 0.30
+    drift_result.features[0].psi = 0.02
 
     result = alerts.evaluate_alerts(
         None,
@@ -231,14 +231,14 @@ def test_a03_generates_one_alert_per_critical_feature(
 ):
     second_feature = FeatureDrift(
         name="feature_b",
-        psi=0.40,
+        psi=0.03,
         ks_stat=0.20,
         ks_pvalue=0.01,
         evidently_drifted=True,
         drifted=True,
         severity="CRITICAL",
     )
-    drift_result.features[0].psi = 0.30
+    drift_result.features[0].psi = 0.02
     drift_result.features.append(second_feature)
 
     result = alerts.evaluate_alerts(
@@ -260,7 +260,7 @@ def test_a03_does_not_fire_below_threshold(
     drift_result,
     alert_environment,
 ):
-    drift_result.features[0].psi = 0.24
+    drift_result.features[0].psi = 0.017246
 
     result = alerts.evaluate_alerts(
         None,

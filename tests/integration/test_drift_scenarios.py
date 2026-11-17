@@ -1,3 +1,5 @@
+from itertools import pairwise
+
 import pandas as pd
 import yaml
 
@@ -96,6 +98,8 @@ def test_covariate_moderate_detects_changed_features(
     psi_history = {name: [] for name in altered_features}
     last_features = {}
 
+    assert len(generated) == 4
+
     for index, path in enumerate(generated, start=1):
         current_batch = pd.read_parquet(path)
         current = add_score(current_batch)
@@ -116,8 +120,24 @@ def test_covariate_moderate_detects_changed_features(
         for name in altered_features:
             psi_history[name].append(features[name].psi)
 
+        # Features de controle não devem ser detectadas como drift.
         for name in control_features:
             assert not features[name].drifted, f"{name} apresentou drift inesperado no lote {index}"
+
+        # PSI médio das features alteradas deve superar o das controles.
+        altered_psi_mean = sum(features[name].psi for name in altered_features) / len(
+            altered_features
+        )
+
+        control_psi_mean = sum(features[name].psi for name in control_features) / len(
+            control_features
+        )
+
+        assert altered_psi_mean > control_psi_mean, (
+            f"Lote {index}: PSI médio das alteradas "
+            f"({altered_psi_mean:.4f}) não superou o das controles "
+            f"({control_psi_mean:.4f})"
+        )
 
     # As features alteradas devem apresentar aumento de PSI.
     for name, values in psi_history.items():
@@ -150,6 +170,11 @@ def test_covariate_severe_detects_stronger_drift(
     }
     control_features = {"age", "dependents"}
 
+    psi_history = {name: [] for name in altered_features}
+    detected_by_batch = []
+
+    assert len(generated) == 6
+
     for index, path in enumerate(generated, start=1):
         current_batch = pd.read_parquet(path)
         current = add_score(current_batch)
@@ -166,30 +191,36 @@ def test_covariate_severe_detects_stronger_drift(
 
         features = {feature.name: feature for feature in result.features}
 
-        print(f"\nLote severo: {index}")
-
-        for name in altered_features | control_features:
-            feature = features[name]
-
-            print(
-                f"{name}: "
-                f"PSI={feature.psi:.4f}, "
-                f"KS={feature.ks_stat:.4f}, "
-                f"Drifted={feature.drifted}, "
-                f"Severity={feature.severity}"
-            )
+        for name in altered_features:
+            psi_history[name].append(features[name].psi)
 
         for name in control_features:
             assert not features[name].drifted, f"{name} apresentou drift inesperado no lote {index}"
 
-        # assert any(
-        #     features[name].drifted for name in altered_features
-        # ), (
-        #     f"Nenhuma feature alterada apresentou drift no lote {index}"
-        # )
+        detected = {name for name in altered_features if features[name].drifted}
+        detected_by_batch.append(detected)
 
-        altered_psi = {name: features[name].psi for name in altered_features}
+    # PSI deve crescer progressivamente nas features alteradas.
+    for name, values in psi_history.items():
+        assert all(
+            current_value > previous_value for previous_value, current_value in pairwise(values)
+        ), f"{name} não apresentou crescimento progressivo de PSI: {values}"
 
-        detected = [name for name in altered_features if features[name].drifted]
+    # Lote 1: detecção parcial, sem atingir todas as features alteradas.
+    assert 0 < len(detected_by_batch[0]) < len(altered_features)
 
-        print(f"Features detectadas: {detected} | Maior PSI: {max(altered_psi.values()):.4f}")
+    # Lotes seguintes: todas as features alteradas devem ser detectadas.
+    for index, detected in enumerate(detected_by_batch[1:], start=2):
+        assert detected == altered_features, (
+            f"Lote {index} não detectou todas as features alteradas: {detected}"
+        )
+
+    # Lotes 2 e 3: ao menos uma feature alterada detectada.
+    for index in (1, 2):
+        assert detected_by_batch[index], f"Nenhuma feature alterada detectada no lote {index + 1}"
+
+    # Lotes 4, 5 e 6: todas as features alteradas detectadas.
+    for index in (3, 4, 5):
+        assert detected_by_batch[index] == altered_features, (
+            f"Detecção incompleta no lote {index + 1}: {detected_by_batch[index]}"
+        )
