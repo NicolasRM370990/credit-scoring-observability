@@ -33,7 +33,9 @@ Fale olhando para a câmera ou para a tela, em tom de quem explica para a direto
 
 ### 0:00 — Slide 1 — Abertura
 
-Este é o CreditWatch, da fase 4. A equipe é Alexis Ferreira Duarte, George Ricardo dos Santos, Leandro de Souza Pignataro e Nicolas de Araújo Gomes.
+A seguir vamos apresentar o projeto do Tech Challenge fase 4 - CreditWatch - observabilidade continua de um modelo de credit scoring. 
+
+Esta apresentação segue o modelo STAR - Situação, Tarefa, Ação e Resultado. A equipe é Alexis, George, Leandro e Nicolas.
 
 ### 0:18 — Slide 2 — Situação
 
