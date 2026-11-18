@@ -2,6 +2,7 @@
 
 Uso: python -m creditwatch.data.download [--print-hash]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -61,7 +62,9 @@ def load_raw(cfg: dict) -> pd.DataFrame:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--print-hash", action="store_true", help="só imprime o SHA-256 do arquivo bruto")
+    parser.add_argument(
+        "--print-hash", action="store_true", help="só imprime o SHA-256 do arquivo bruto"
+    )
     args = parser.parse_args()
 
     cfg = load_config()
@@ -87,7 +90,10 @@ def main() -> int:
         print("ERRO: SHA-256 não configurado em config/data.yaml.", file=sys.stderr)
         return 1
     elif digest != expected:
-        print(f"ERRO: SHA-256 diferente.\n  esperado: {expected}\n  obtido:   {digest}", file=sys.stderr)
+        print(
+            f"ERRO: SHA-256 diferente.\n  esperado: {expected}\n  obtido:   {digest}",
+            file=sys.stderr,
+        )
         return 1
     else:
         print("SHA-256 confere.")

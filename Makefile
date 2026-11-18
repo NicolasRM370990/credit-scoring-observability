@@ -1,4 +1,4 @@
-.PHONY: setup test test-smoke test-functional test-regression test-security test-pentest test-performance security-scan lint data prepare train evaluate evaluate-labeled score bias demo-smoke demo demo-video
+.PHONY: setup test test-smoke test-functional test-regression test-security test-pentest test-performance security-scan lint data prepare train evaluate evaluate-labeled score bias demo-smoke demo demo-video mlflow-ui
 
 setup:
 	uv sync
@@ -64,3 +64,6 @@ demo:
 
 demo-video:
 	uv run python -m creditwatch.pipeline.run --demo-video
+
+mlflow-ui:
+	uv run mlflow ui --backend-store-uri sqlite:///mlflow/creditwatch.db --host 127.0.0.1 --port 5000 --workers 1

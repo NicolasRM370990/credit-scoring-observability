@@ -19,9 +19,17 @@ RAW = Path(CFG["dataset"]["raw_file"])
 
 def _row(**overrides) -> dict:
     base = {
-        "revolving_utilization": 0.3, "age": 40, "past_due_30_59": 0, "debt_ratio": 0.3,
-        "monthly_income": 5000.0, "open_credit_lines": 5, "times_90_days_late": 0,
-        "real_estate_loans": 1, "past_due_60_89": 0, "dependents": 1, "target": 0,
+        "revolving_utilization": 0.3,
+        "age": 40,
+        "past_due_30_59": 0,
+        "debt_ratio": 0.3,
+        "monthly_income": 5000.0,
+        "open_credit_lines": 5,
+        "times_90_days_late": 0,
+        "real_estate_loans": 1,
+        "past_due_60_89": 0,
+        "dependents": 1,
+        "target": 0,
     }
     return {**base, **overrides}
 
@@ -29,14 +37,14 @@ def _row(**overrides) -> dict:
 def test_clean_removes_each_kind_of_invalid_row():
     cap = CONTRACT["block_rules"]["R02_INCOME"]["max"]
     rows = [
-        _row(),                                   # ok
-        _row(),                                   # duplicata do anterior
-        _row(age=17, monthly_income=1.0),         # menor de idade
-        _row(age=111, monthly_income=2.0),        # idade acima do máximo
-        _row(monthly_income=float("nan")),        # renda nula
-        _row(monthly_income=cap + 1),             # renda acima do teto
+        _row(),  # ok
+        _row(),  # duplicata do anterior
+        _row(age=17, monthly_income=1.0),  # menor de idade
+        _row(age=111, monthly_income=2.0),  # idade acima do máximo
+        _row(monthly_income=float("nan")),  # renda nula
+        _row(monthly_income=cap + 1),  # renda acima do teto
         _row(age=30, monthly_income=4000.0, past_due_30_59=98),  # código especial: fica, vira NaN
-        _row(age=50, monthly_income=7000.0),      # ok
+        _row(age=50, monthly_income=7000.0),  # ok
     ]
     out, steps = clean(pd.DataFrame(rows), CFG, CONTRACT)
 
@@ -67,7 +75,7 @@ def test_split_data_sizes_overlap_and_target_rate():
 
     assert sum(len(p) for p in parts.values()) == n
     ids = [set(p[CFG["id_col"]]) for p in parts.values()]
-    assert sum(len(s) for s in ids) == len(set().union(*ids))   # nenhum id em dois splits
+    assert sum(len(s) for s in ids) == len(set().union(*ids))  # nenhum id em dois splits
 
     for name, frac in CFG["split"].items():
         assert abs(len(parts[name]) / n - frac) < 0.01
@@ -89,7 +97,12 @@ def test_prepare_end_to_end_respects_the_contract(tmp_path):
     assert all_rows["age"].between(age_rule["min"], age_rule["max"]).all()
     assert all_rows["monthly_income"].notna().all()
     assert all_rows["monthly_income"].between(income_rule["min"], income_rule["max"]).all()
-    assert not all_rows[CFG["special_codes"]["columns"]].isin(CFG["special_codes"]["values"]).any().any()
+    assert (
+        not all_rows[CFG["special_codes"]["columns"]]
+        .isin(CFG["special_codes"]["values"])
+        .any()
+        .any()
+    )
     assert not all_rows.drop(columns="customer_id").duplicated().any()
     assert all_rows["target"].isin([0, 1]).all()
     assert (tmp_path / "split_manifest.json").exists()

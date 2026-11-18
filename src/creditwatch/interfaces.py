@@ -3,6 +3,7 @@
 Mudanças aqui só entram por PR com a label `contract-change`, aprovado por
 quem produz e por quem consome cada interface (ver docs/contracts.md).
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -18,8 +19,17 @@ CONTRACT_VERSION = "1.0.0"
 
 STAGES = ("ingest", "validate", "score", "drift", "alert", "report", "pipeline")
 LOG_REQUIRED_FIELDS = (
-    "ts", "level", "run_id", "batch_id", "stage", "event",
-    "status", "duration_ms", "n_rows", "message", "extra",
+    "ts",
+    "level",
+    "run_id",
+    "batch_id",
+    "stage",
+    "event",
+    "status",
+    "duration_ms",
+    "n_rows",
+    "message",
+    "extra",
 )
 
 ValidationStatus = Literal["PASSED", "PASSED_WITH_WARNINGS", "BLOCKED"]
@@ -50,13 +60,15 @@ class RunContext(BaseModel):
 
 # ---------------------------------------------------------------- validação (P2)
 class ValidationCheck(BaseModel):
-    rule_id: str                       # ex.: R01_AGE_RANGE, W01_NULL_RATE
+    rule_id: str  # ex.: R01_AGE_RANGE, W01_NULL_RATE
     severity: RuleSeverity
     column: str | None = None
     passed: bool
     n_failures: int = 0
     failure_rate: float = 0.0
-    examples: list[dict[str, int]] = Field(default_factory=list)  # só {"row_index": n}, nunca valores
+    examples: list[dict[str, int]] = Field(
+        default_factory=list
+    )  # só {"row_index": n}, nunca valores
 
 
 class ValidationResult(BaseModel):
@@ -122,6 +134,7 @@ class RunMetrics(BaseModel):
     No MLflow, `latency_s`, `psi` e `ks` são achatados:
     latency_<estagio>_s, psi_<feature>, ks_<feature>.
     """
+
     schema_version: str = SCHEMA_VERSION
     run_id: str
     batch_id: str
@@ -133,7 +146,9 @@ class RunMetrics(BaseModel):
     rows_valid: int = 0
     rows_rejected: int = 0
     validation_blocked: bool = False
-    latency_s: dict[str, float] = Field(default_factory=dict)  # ingest, validate, score, drift, total
+    latency_s: dict[str, float] = Field(
+        default_factory=dict
+    )  # ingest, validate, score, drift, total
     drift_share: float | None = None
     psi: dict[str, float] = Field(default_factory=dict)
     ks: dict[str, float] = Field(default_factory=dict)
@@ -149,7 +164,7 @@ class Alert(BaseModel):
     run_id: str
     batch_id: str
     severity: AlertSeverity
-    rule_id: str                       # A01_... a A06_...
+    rule_id: str  # A01_... a A06_...
     message: str
     metric: str | None = None
     value: float | None = None
@@ -157,29 +172,33 @@ class Alert(BaseModel):
 
 
 # ---------------------------------------------------------------- assinaturas
-class ValidateBatch(Protocol):            # contracts/validate.py (P2)
-    def __call__(self, df: pd.DataFrame, batch_id: str,
-                 contract_version: str = CONTRACT_VERSION) -> ValidationResult: ...
+class ValidateBatch(Protocol):  # contracts/validate.py (P2)
+    def __call__(
+        self, df: pd.DataFrame, batch_id: str, contract_version: str = CONTRACT_VERSION
+    ) -> ValidationResult: ...
 
 
-class IngestBatch(Protocol):              # contracts/ingestion.py (P2); levanta BatchRejected
+class IngestBatch(Protocol):  # contracts/ingestion.py (P2); levanta BatchRejected
     def __call__(self, path: Path, ctx: RunContext) -> pd.DataFrame: ...
 
 
-class ScoreBatch(Protocol):               # model/predict.py (P1)
+class ScoreBatch(Protocol):  # model/predict.py (P1)
     def __call__(self, df: pd.DataFrame, model_path: Path) -> pd.DataFrame: ...
 
 
-class GenerateScenario(Protocol):         # simulation/generate.py (P3)
-    def __call__(self, pool: pd.DataFrame, scenario: str,
-                 config_path: Path, out_dir: Path) -> list[Path]: ...
+class GenerateScenario(Protocol):  # simulation/generate.py (P3)
+    def __call__(
+        self, pool: pd.DataFrame, scenario: str, config_path: Path, out_dir: Path
+    ) -> list[Path]: ...
 
 
-class DetectDrift(Protocol):              # drift/detector.py (P3)
-    def __call__(self, reference: pd.DataFrame, current: pd.DataFrame,
-                 cfg: DriftThresholds, ctx: RunContext) -> DriftResult: ...
+class DetectDrift(Protocol):  # drift/detector.py (P3)
+    def __call__(
+        self, reference: pd.DataFrame, current: pd.DataFrame, cfg: DriftThresholds, ctx: RunContext
+    ) -> DriftResult: ...
 
 
-class EvaluateAlerts(Protocol):           # observability/alerts.py (P4)
-    def __call__(self, validation: ValidationResult | None, drift: DriftResult | None,
-                 metrics: RunMetrics) -> list[Alert]: ...
+class EvaluateAlerts(Protocol):  # observability/alerts.py (P4)
+    def __call__(
+        self, validation: ValidationResult | None, drift: DriftResult | None, metrics: RunMetrics
+    ) -> list[Alert]: ...

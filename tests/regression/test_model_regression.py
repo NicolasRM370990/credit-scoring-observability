@@ -1,4 +1,5 @@
 """Regressão do modelo versionado e consistência entre arquivos de configuração."""
+
 from __future__ import annotations
 
 import json

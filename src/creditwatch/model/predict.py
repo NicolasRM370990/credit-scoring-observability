@@ -1,4 +1,5 @@
 """Scoring de lotes usando modelo e metadata persistidos pelo treino."""
+
 from __future__ import annotations
 
 import argparse
@@ -64,7 +65,11 @@ def score_batch(
 
     model = joblib.load(model_path)
     scores = np.asarray(model.predict_proba(df[features])[:, 1], dtype=float)
-    if scores.shape != (len(df),) or not np.isfinite(scores).all() or ((scores < 0) | (scores > 1)).any():
+    if (
+        scores.shape != (len(df),)
+        or not np.isfinite(scores).all()
+        or ((scores < 0) | (scores > 1)).any()
+    ):
         raise ValueError("Modelo retornou scores inválidos; esperava probabilidades entre 0 e 1")
 
     result = df.copy()
@@ -78,7 +83,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Aplica scoring a um arquivo Parquet")
     parser.add_argument("input", type=Path, help="Lote Parquet de entrada")
     parser.add_argument("--model", type=Path, default=Path("models/baseline_v1.joblib"))
-    parser.add_argument("--metadata", type=Path, help="Metadata JSON; por padrão usa a raiz do modelo")
+    parser.add_argument(
+        "--metadata", type=Path, help="Metadata JSON; por padrão usa a raiz do modelo"
+    )
     parser.add_argument("--output", type=Path, required=True, help="Parquet scored de saída")
     args = parser.parse_args()
 

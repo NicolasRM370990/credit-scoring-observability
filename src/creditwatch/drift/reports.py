@@ -63,9 +63,7 @@ def generate_batch_report(
 
     snapshot.save_html(str(html_path))
 
-    updated_result = result.model_copy(
-        update={"report_html": str(html_path)}
-    )
+    updated_result = result.model_copy(update={"report_html": str(html_path)})
 
     json_path.write_text(
         updated_result.model_dump_json(indent=2),
@@ -99,17 +97,10 @@ def generate_psi_chart(
         current_features = {feature.name for feature in result.features}
 
         if current_features != expected_features:
-            raise ValueError(
-                f"Features inconsistentes no lote: {result.batch_id}"
-            )
+            raise ValueError(f"Features inconsistentes no lote: {result.batch_id}")
 
-        if any(
-            not math.isfinite(feature.psi)
-            for feature in result.features
-        ):
-            raise ValueError(
-                f"Valor PSI não finito no lote: {result.batch_id}"
-            )
+        if any(not math.isfinite(feature.psi) for feature in result.features):
+            raise ValueError(f"Valor PSI não finito no lote: {result.batch_id}")
 
     thresholds = results[0].thresholds
 
@@ -123,24 +114,16 @@ def generate_psi_chart(
     feature_count = len(features)
     bar_width = 0.8 / feature_count
 
-    fig, ax = plt.subplots(
-        figsize=(max(10, len(results) * 1.5), 6)
-    )
+    fig, ax = plt.subplots(figsize=(max(10, len(results) * 1.5), 6))
 
     try:
         for index, feature_name in enumerate(features):
             values = [
-                next(
-                    feature.psi
-                    for feature in result.features
-                    if feature.name == feature_name
-                )
+                next(feature.psi for feature in result.features if feature.name == feature_name)
                 for result in results
             ]
 
-            offset = (
-                index - (feature_count - 1) / 2
-            ) * bar_width
+            offset = (index - (feature_count - 1) / 2) * bar_width
 
             ax.bar(
                 batch_positions + offset,

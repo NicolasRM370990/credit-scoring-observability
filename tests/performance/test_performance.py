@@ -1,4 +1,5 @@
 """Performance e carga: orçamentos de tempo bem abaixo do alerta A04 (120 s por execução)."""
+
 from __future__ import annotations
 
 import time
@@ -49,8 +50,11 @@ def test_scoring_throughput(trained_model):
 
 def test_severe_scenario_generation_time(production_pool, tmp_path):
     elapsed, paths = _elapsed(
-        generate_scenario, production_pool, "covariate_severe",
-        ROOT / "config" / "drift_scenarios.yaml", tmp_path,
+        generate_scenario,
+        production_pool,
+        "covariate_severe",
+        ROOT / "config" / "drift_scenarios.yaml",
+        tmp_path,
     )
 
     assert len(paths) == 6

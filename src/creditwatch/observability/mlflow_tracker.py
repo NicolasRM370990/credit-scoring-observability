@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-import mlflow
+from pathlib import Path
+
 from mlflow.tracking import MlflowClient
 
+import mlflow
 from creditwatch.interfaces import RunMetrics
 
 TRACKING_URI = "sqlite:///mlflow/creditwatch.db"
@@ -36,10 +38,21 @@ def _flatten_metrics(metrics: RunMetrics) -> dict[str, float]:
     return {key: float(value) for key, value in flattened.items() if value is not None}
 
 
-def log_run(metrics: RunMetrics) -> None:
-    """Registra uma execução de monitoramento no MLflow."""
+def log_run(
+    metrics: RunMetrics,
+    artifacts: dict[str, Path] | None = None,
+) -> None:
+    """Registra métricas e artifacts de uma execução no MLflow."""
     if not isinstance(metrics, RunMetrics):
         raise TypeError("metrics deve ser uma instância de RunMetrics.")
+
+    artifacts = artifacts or {}
+
+    for artifact_name, artifact_path in artifacts.items():
+        if not isinstance(artifact_path, Path):
+            raise TypeError(f"O artifact '{artifact_name}' deve ser informado como Path.")
+        if not artifact_path.is_file():
+            raise FileNotFoundError(f"Artifact não encontrado: {artifact_path}")
 
     mlflow.set_tracking_uri(TRACKING_URI)
 
@@ -57,6 +70,8 @@ def log_run(metrics: RunMetrics) -> None:
         "status": metrics.pipeline_status,
         "model_version": metrics.model_version or "unknown",
         "contract_version": metrics.contract_version,
+        "run_id": metrics.run_id,
+        "batch_id": metrics.batch_id,
     }
 
     with mlflow.start_run(
@@ -65,3 +80,9 @@ def log_run(metrics: RunMetrics) -> None:
         tags=tags,
     ):
         mlflow.log_metrics(_flatten_metrics(metrics))
+
+        for artifact_name, artifact_path in artifacts.items():
+            mlflow.log_artifact(
+                str(artifact_path),
+                artifact_path=artifact_name,
+            )

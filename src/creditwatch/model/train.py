@@ -1,4 +1,5 @@
 """Treina e registra o baseline HistGradientBoostingClassifier."""
+
 from __future__ import annotations
 
 import argparse
@@ -74,7 +75,9 @@ def train(
             f"ROC-AUC de teste {test_metrics['roc_auc']:.4f} abaixo do mínimo configurado {min_auc:.4f}"
         )
 
-    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8")) if MANIFEST_PATH.exists() else {}
+    manifest = (
+        json.loads(MANIFEST_PATH.read_text(encoding="utf-8")) if MANIFEST_PATH.exists() else {}
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     version = model_cfg["model_version"]
     model_path = output_dir / f"{version}.joblib"
@@ -88,7 +91,9 @@ def train(
         "target": target,
         "seed": int(model_cfg.get("seed", data_cfg["seed"])),
         "threshold": threshold,
-        "threshold_method": "config/model.yaml" if configured_threshold is not None else "validation_max_f1",
+        "threshold_method": "config/model.yaml"
+        if configured_threshold is not None
+        else "validation_max_f1",
         "threshold_selection_note": (
             "Threshold maximizes F1 on validation; operational costs and calibration were not supplied."
             if configured_threshold is None
@@ -96,14 +101,21 @@ def train(
         ),
         "dataset": data_cfg["dataset"]["name"],
         "raw_sha256": manifest.get("raw_sha256"),
-        "splits": {name: len(frame) for name, frame in (
-            ("reference_train", train_frame), ("reference_val", val_frame), ("reference_test", test_frame)
-        )},
+        "splits": {
+            name: len(frame)
+            for name, frame in (
+                ("reference_train", train_frame),
+                ("reference_val", val_frame),
+                ("reference_test", test_frame),
+            )
+        },
         "metrics": {"validation": val_metrics, "test": test_metrics, "dummy_test": dummy_metrics},
         "min_auc_test": min_auc,
         "model_sha256": sha256_of(model_path),
     }
-    metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     return metadata
 
 
@@ -115,7 +127,9 @@ def main() -> int:
     metrics = metadata["metrics"]
     print(f"Modelo salvo: {args.output_dir / (metadata['model_version'] + '.joblib')}")
     print(f"Threshold: {metadata['threshold']:.6f} ({metadata['threshold_method']})")
-    print(f"ROC-AUC teste: {metrics['test']['roc_auc']:.4f}; dummy: {metrics['dummy_test']['roc_auc']:.4f}")
+    print(
+        f"ROC-AUC teste: {metrics['test']['roc_auc']:.4f}; dummy: {metrics['dummy_test']['roc_auc']:.4f}"
+    )
     print(f"PR-AUC teste: {metrics['test']['pr_auc']:.4f}; KS: {metrics['test']['ks']:.4f}")
     return 0
 

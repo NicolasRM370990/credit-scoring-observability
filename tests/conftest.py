@@ -1,4 +1,5 @@
 """Fixtures sintéticos compartilhados; testes unitários não dependem de dados locais."""
+
 from __future__ import annotations
 
 import hashlib

@@ -1,4 +1,5 @@
 """Smoke tests: o projeto instala, importa, lê a configuração e as CLIs sobem."""
+
 from __future__ import annotations
 
 import importlib
@@ -69,7 +70,11 @@ def test_model_metadata_is_present_and_parseable():
 def test_cli_help_exits_cleanly(module):
     result = subprocess.run(
         [sys.executable, "-m", module, "--help"],
-        cwd=ROOT, capture_output=True, text=True, timeout=120, check=False,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     assert "usage" in result.stdout.lower()
@@ -78,7 +83,11 @@ def test_cli_help_exits_cleanly(module):
 def test_pipeline_smoke_cli_emits_json_log_for_every_stage(tmp_path):
     result = subprocess.run(
         [sys.executable, "-m", "creditwatch.pipeline.run", "--smoke"],
-        cwd=tmp_path, capture_output=True, text=True, timeout=120, check=False,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     summary = json.loads(result.stdout.strip().splitlines()[-1])
@@ -94,7 +103,11 @@ def test_pipeline_smoke_cli_emits_json_log_for_every_stage(tmp_path):
 def test_pipeline_cli_without_arguments_fails_with_usage(tmp_path):
     result = subprocess.run(
         [sys.executable, "-m", "creditwatch.pipeline.run"],
-        cwd=tmp_path, capture_output=True, text=True, timeout=120, check=False,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
     )
     assert result.returncode == 2
     assert "informe --smoke" in result.stderr

@@ -7,7 +7,9 @@ CFG = yaml.safe_load(Path("config/data.yaml").read_text(encoding="utf-8"))
 
 def test_rename_matches_features_and_target():
     renamed = set(CFG["rename"].values())
-    expected = set(CFG["features"]["numerical"]) | set(CFG["features"]["categorical"]) | {CFG["target"]}
+    expected = (
+        set(CFG["features"]["numerical"]) | set(CFG["features"]["categorical"]) | {CFG["target"]}
+    )
     assert renamed == expected
 
 

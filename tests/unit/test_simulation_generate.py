@@ -48,6 +48,7 @@ def test_generate_no_drift(tmp_path, production_pool):
         assert batch_info["event_date"] == expected_date.isoformat()
         assert batch_info["intensity"] == 0.0
 
+
 def test_generate_no_drift_is_reproducible(tmp_path, production_pool):
     pool = production_pool
 
@@ -70,7 +71,6 @@ def test_generate_no_drift_is_reproducible(tmp_path, production_pool):
         second_df = pd.read_parquet(second_path)
 
         pd.testing.assert_frame_equal(first_df, second_df)
-
 
 
 def test_generate_covariate_moderate(tmp_path, production_pool):
@@ -116,7 +116,6 @@ def test_generate_covariate_severe(tmp_path, production_pool):
         assert batch["age"].between(18, 110).all()
 
 
-
 def test_generate_covariate_moderate_ramp(tmp_path, production_pool):
     output_dir = tmp_path / "production"
 
@@ -127,19 +126,14 @@ def test_generate_covariate_moderate_ramp(tmp_path, production_pool):
         out_dir=output_dir,
     )
 
-    manifest_path = (
-        output_dir / "covariate_moderate" / "MANIFEST.json"
-    )
+    manifest_path = output_dir / "covariate_moderate" / "MANIFEST.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     batches = manifest["batches"]
 
     intensities = [batch["intensity"] for batch in batches]
 
     assert intensities == pytest.approx([0.25, 0.50, 0.75, 1.0])
-    assert all(
-        current < following
-        for current, following in pairwise(intensities)
-    )
+    assert all(current < following for current, following in pairwise(intensities))
 
     expected_factors = [1.0625, 1.125, 1.1875, 1.25]
     expected_shifts = [0.0375, 0.075, 0.1125, 0.15]
@@ -149,18 +143,13 @@ def test_generate_covariate_moderate_ramp(tmp_path, production_pool):
     ):
         transformations = batch_info["transformations"]
 
-        income = next(
-            item for item in transformations
-            if item["feature"] == "monthly_income"
-        )
+        income = next(item for item in transformations if item["feature"] == "monthly_income")
         utilization = next(
-            item for item in transformations
-            if item["feature"] == "revolving_utilization"
+            item for item in transformations if item["feature"] == "revolving_utilization"
         )
 
         assert income["factor"] == pytest.approx(expected_factor)
         assert utilization["value"] == pytest.approx(expected_shift)
-
 
 
 def test_generate_covariate_severe_ramp(tmp_path, production_pool):
@@ -173,39 +162,25 @@ def test_generate_covariate_severe_ramp(tmp_path, production_pool):
         out_dir=output_dir,
     )
 
-    manifest_path = (
-        output_dir / "covariate_severe" / "MANIFEST.json"
-    )
+    manifest_path = output_dir / "covariate_severe" / "MANIFEST.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     batches = manifest["batches"]
 
     intensities = [batch["intensity"] for batch in batches]
 
-    assert intensities == pytest.approx(
-        [1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 1.0]
-    )
+    assert intensities == pytest.approx([1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 1.0])
 
-    assert all(
-        current < following
-        for current, following in pairwise(intensities)
-    )
+    assert all(current < following for current, following in pairwise(intensities))
 
     for batch_info in batches:
         intensity = batch_info["intensity"]
         transformations = batch_info["transformations"]
 
-        income = next(
-            item for item in transformations
-            if item["feature"] == "monthly_income"
-        )
+        income = next(item for item in transformations if item["feature"] == "monthly_income")
         utilization = next(
-            item for item in transformations
-            if item["feature"] == "revolving_utilization"
+            item for item in transformations if item["feature"] == "revolving_utilization"
         )
-        debt_ratio = next(
-            item for item in transformations
-            if item["feature"] == "debt_ratio"
-        )
+        debt_ratio = next(item for item in transformations if item["feature"] == "debt_ratio")
 
         assert income["factor"] == pytest.approx(1 + 0.40 * intensity)
         assert utilization["value"] == pytest.approx(0.30 * intensity)
@@ -279,21 +254,14 @@ def test_generate_concept_drift(tmp_path, production_pool):
         assert set(batch["target"].unique()).issubset({0, 1})
         assert pd.notna(batch["event_date"]).all()
 
-    manifest_path = (
-        tmp_path / "concept_drift" / "MANIFEST.json"
-    )
+    manifest_path = tmp_path / "concept_drift" / "MANIFEST.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    intensities = [
-        batch["intensity"] for batch in manifest["batches"]
-    ]
+    intensities = [batch["intensity"] for batch in manifest["batches"]]
 
     assert intensities == pytest.approx([0.25, 0.50, 0.75, 1.0])
 
-    offsets = [
-        batch["labels"]["logit_offset"]
-        for batch in manifest["batches"]
-    ]
+    offsets = [batch["labels"]["logit_offset"] for batch in manifest["batches"]]
 
     assert offsets == pytest.approx([0.2, 0.4, 0.6, 0.8])
 
@@ -319,20 +287,22 @@ def test_generate_concept_drift_preserves_features(
     digest = hashlib.sha256(payload).digest()
     sample_seed = int.from_bytes(digest[:4], byteorder="big")
 
-    expected = production_pool.sample(
-        n=batch_size * batches_count,
-        replace=False,
-        random_state=sample_seed,
-    ).drop(columns="target").reset_index(drop=True)
+    expected = (
+        production_pool.sample(
+            n=batch_size * batches_count,
+            replace=False,
+            random_state=sample_seed,
+        )
+        .drop(columns="target")
+        .reset_index(drop=True)
+    )
 
     actual = pd.concat(
         [pd.read_parquet(path) for path in generated],
         ignore_index=True,
     )
 
-    actual = actual.drop(
-        columns=["target", "event_date"]
-    ).reset_index(drop=True)
+    actual = actual.drop(columns=["target", "event_date"]).reset_index(drop=True)
 
     missing_columns = ["past_due_30_59", "times_90_days_late"]
 

@@ -1,4 +1,3 @@
-
 """Gera relatórios Evidently e gráfico PSI para um cenário."""
 
 from __future__ import annotations
@@ -36,9 +35,7 @@ def main() -> None:
     batch_paths = sorted(BATCHES_DIR.glob("batch_*_scored.parquet"))
 
     if not batch_paths:
-        raise FileNotFoundError(
-            f"Nenhum lote pontuado encontrado em {BATCHES_DIR}"
-        )
+        raise FileNotFoundError(f"Nenhum lote pontuado encontrado em {BATCHES_DIR}")
 
     print("Carregando referência...")
     reference_raw = pd.read_parquet(REFERENCE_PATH)
@@ -46,9 +43,7 @@ def main() -> None:
     print("Pontuando referência com baseline_v1...")
     reference = score_batch(reference_raw, MODEL_PATH)
 
-    thresholds_data = yaml.safe_load(
-        THRESHOLDS_PATH.read_text(encoding="utf-8")
-    )
+    thresholds_data = yaml.safe_load(THRESHOLDS_PATH.read_text(encoding="utf-8"))
     thresholds = DriftThresholds(**thresholds_data)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

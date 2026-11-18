@@ -13,17 +13,21 @@ from creditwatch.interfaces import (
 
 @pytest.fixture
 def dataframes():
-    reference = pd.DataFrame({
-        "feature_a": [10, 11, 12, 13, 14] * 20,
-        "feature_b": [20, 21, 22, 23, 24] * 20,
-        "score": [0.1, 0.2, 0.3, 0.4, 0.5] * 20,
-    })
+    reference = pd.DataFrame(
+        {
+            "feature_a": [10, 11, 12, 13, 14] * 20,
+            "feature_b": [20, 21, 22, 23, 24] * 20,
+            "score": [0.1, 0.2, 0.3, 0.4, 0.5] * 20,
+        }
+    )
 
-    current = pd.DataFrame({
-        "feature_a": [30, 31, 32, 33, 34] * 20,
-        "feature_b": [50, 51, 52, 53, 54] * 20,
-        "score": [0.2, 0.3, 0.4, 0.5, 0.6] * 20,
-    })
+    current = pd.DataFrame(
+        {
+            "feature_a": [30, 31, 32, 33, 34] * 20,
+            "feature_b": [50, 51, 52, 53, 54] * 20,
+            "score": [0.2, 0.3, 0.4, 0.5, 0.6] * 20,
+        }
+    )
 
     return reference, current
 

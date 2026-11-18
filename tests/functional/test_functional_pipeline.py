@@ -12,6 +12,7 @@ import pytest
 from conftest import FEATURES, make_credit_frame
 
 from creditwatch.contracts import validate_batch
+from creditwatch.drift.reports import generate_batch_report
 from creditwatch.interfaces import (
     BatchRejected,
     DriftResult,
@@ -23,6 +24,7 @@ from creditwatch.model.evaluate import evaluate_labeled_batches, write_perf_vs_d
 from creditwatch.model.fairness import analyze_age_groups, render_report
 from creditwatch.model.predict import score_batch
 from creditwatch.observability import alerts as alert_engine
+from creditwatch.observability.alerts import Alert
 from creditwatch.pipeline import run as pipeline
 from creditwatch.simulation.generate import generate_scenario
 
@@ -211,6 +213,7 @@ def _components(ingestion):
         "ingestion": ingestion,
         "validation": validate_batch,
         "drift": _fake_drift,
+        "report": generate_batch_report,
         "alerts": Recorder(),
         "metrics": Recorder(),
         "mlflow": Recorder(),
@@ -237,6 +240,14 @@ def test_run_batch_happy_path_scores_and_records_metrics(pipeline_workspace):
     assert 0 <= metrics.score_mean <= 1
     stages = [event["stage"] for event in _log_events(pipeline_workspace)]
     assert stages == ["ingest", "validate", "score", "drift", "report", "pipeline", "alert"]
+
+    report_dir = pipeline_workspace / "artifacts" / "drift"
+
+    assert (report_dir / "batch_ok.html").is_file()
+    assert (report_dir / "batch_ok.json").is_file()
+
+    assert (report_dir / "batch_ok.html").stat().st_size > 0
+    assert (report_dir / "batch_ok.json").stat().st_size > 0
 
 
 def test_run_batch_blocks_invalid_batch_before_scoring(pipeline_workspace):
@@ -297,8 +308,25 @@ def test_run_batch_records_alert_counts_after_evaluation(
     components["alerts"].result = None
 
     def evaluate_and_update(validation, drift, metrics):
-        fake_alerts(validation, drift, metrics)
-        return [object(), object(), object()]
+        metrics.n_alerts_warning = 2
+        metrics.n_alerts_critical = 1
+
+        return [
+            Alert(
+                run_id=metrics.run_id,
+                batch_id=metrics.batch_id,
+                severity="WARNING",
+                rule_id="TEST_WARNING",
+                message="Test warning alert",
+            ),
+            Alert(
+                run_id=metrics.run_id,
+                batch_id=metrics.batch_id,
+                severity="CRITICAL",
+                rule_id="TEST_CRITICAL",
+                message="Test critical alert",
+            ),
+        ]
 
     components["alerts"] = evaluate_and_update
 

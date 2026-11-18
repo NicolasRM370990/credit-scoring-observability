@@ -8,6 +8,7 @@ Saída   : data/processed/{reference_train,reference_val,reference_test,producti
 Os limites de limpeza vêm de config/contract.yaml, para o dado de referência
 passar no contrato por construção.
 """
+
 from __future__ import annotations
 
 import json

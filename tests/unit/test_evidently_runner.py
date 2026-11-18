@@ -1,4 +1,3 @@
-
 from types import SimpleNamespace
 
 import pandas as pd
@@ -17,9 +16,7 @@ def _metric_result(column: str, value: float, threshold: float = 0.1):
     }
 
     return SimpleNamespace(
-        metric_value_location=SimpleNamespace(
-            metric=SimpleNamespace(params=params)
-        ),
+        metric_value_location=SimpleNamespace(metric=SimpleNamespace(params=params)),
         value=value,
     )
 
@@ -33,9 +30,7 @@ def _frames():
 def test_returns_false_when_value_is_below_threshold(monkeypatch):
     reference, current = _frames()
 
-    snapshot = SimpleNamespace(
-        metric_results={"metric_1": _metric_result("feature_a", 0.05)}
-    )
+    snapshot = SimpleNamespace(metric_results={"metric_1": _metric_result("feature_a", 0.05)})
 
     class FakeReport:
         def __init__(self, metrics):
@@ -46,9 +41,7 @@ def test_returns_false_when_value_is_below_threshold(monkeypatch):
 
     monkeypatch.setattr(evidently_runner, "Report", FakeReport)
 
-    result = run_evidently_drift(
-        reference, current, ["feature_a"]
-    )
+    result = run_evidently_drift(reference, current, ["feature_a"])
 
     assert result == {"feature_a": False}
 
@@ -56,9 +49,7 @@ def test_returns_false_when_value_is_below_threshold(monkeypatch):
 def test_returns_true_when_value_reaches_threshold(monkeypatch):
     reference, current = _frames()
 
-    snapshot = SimpleNamespace(
-        metric_results={"metric_1": _metric_result("feature_a", 0.1)}
-    )
+    snapshot = SimpleNamespace(metric_results={"metric_1": _metric_result("feature_a", 0.1)})
 
     class FakeReport:
         def __init__(self, metrics):
@@ -69,9 +60,7 @@ def test_returns_true_when_value_reaches_threshold(monkeypatch):
 
     monkeypatch.setattr(evidently_runner, "Report", FakeReport)
 
-    result = run_evidently_drift(
-        reference, current, ["feature_a"]
-    )
+    result = run_evidently_drift(reference, current, ["feature_a"])
 
     assert result == {"feature_a": True}
 
@@ -102,9 +91,7 @@ def test_ignores_non_value_drift_metrics(monkeypatch):
 
     monkeypatch.setattr(evidently_runner, "Report", FakeReport)
 
-    result = run_evidently_drift(
-        reference, current, ["feature_a"]
-    )
+    result = run_evidently_drift(reference, current, ["feature_a"])
 
     assert result == {"feature_a": False}
 
@@ -121,18 +108,14 @@ def test_rejects_invalid_arguments(columns, threshold, message):
     reference, current = _frames()
 
     with pytest.raises(ValueError, match=message):
-        run_evidently_drift(
-            reference, current, columns, threshold
-        )
+        run_evidently_drift(reference, current, columns, threshold)
 
 
 def test_rejects_missing_columns():
     reference, current = _frames()
 
     with pytest.raises(ValueError, match="Colunas ausentes"):
-        run_evidently_drift(
-            reference, current, ["feature_missing"]
-        )
+        run_evidently_drift(reference, current, ["feature_missing"])
 
 
 def test_rejects_non_numeric_columns():
@@ -140,9 +123,7 @@ def test_rejects_non_numeric_columns():
     current = pd.DataFrame({"feature_a": ["a", "c"]})
 
     with pytest.raises(ValueError, match="não numérica"):
-        run_evidently_drift(
-            reference, current, ["feature_a"]
-        )
+        run_evidently_drift(reference, current, ["feature_a"])
 
 
 def test_rejects_empty_dataframes():
@@ -150,9 +131,7 @@ def test_rejects_empty_dataframes():
     current = pd.DataFrame({"feature_a": [1.0]})
 
     with pytest.raises(ValueError, match="não podem estar vazios"):
-        run_evidently_drift(
-            reference, current, ["feature_a"]
-        )
+        run_evidently_drift(reference, current, ["feature_a"])
 
 
 def test_rejects_missing_evidently_result(monkeypatch):
@@ -170,6 +149,4 @@ def test_rejects_missing_evidently_result(monkeypatch):
     monkeypatch.setattr(evidently_runner, "Report", FakeReport)
 
     with pytest.raises(RuntimeError, match="não retornou resultados"):
-        run_evidently_drift(
-            reference, current, ["feature_a"]
-        )
+        run_evidently_drift(reference, current, ["feature_a"])

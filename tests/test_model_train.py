@@ -32,9 +32,10 @@ def test_train_saves_loadable_model_and_metadata(tmp_path, monkeypatch):
         "paths": {"processed": str(processed)},
     }
     model_cfg = {
-        "model": {"name": "HistGradientBoostingClassifier", "params": {
-            "max_iter": 5, "early_stopping": False, "random_state": 42
-        }},
+        "model": {
+            "name": "HistGradientBoostingClassifier",
+            "params": {"max_iter": 5, "early_stopping": False, "random_state": 42},
+        },
         "threshold": None,
         "min_auc_test": 0.0,
         "model_version": "test_baseline",
@@ -71,19 +72,38 @@ def test_train_rejects_split_missing_target(tmp_path):
         pd.DataFrame({"feature": [0.1, 0.2]}).to_parquet(processed / f"{name}.parquet")
     data_path = tmp_path / "data.yaml"
     model_path = tmp_path / "model.yaml"
-    data_path.write_text(yaml.safe_dump({
-        "seed": 42, "dataset": {"name": "synthetic"}, "target": "target",
-        "features": {"numerical": ["feature"], "categorical": []},
-        "paths": {"processed": str(processed)},
-    }), encoding="utf-8")
-    model_path.write_text(yaml.safe_dump({
-        "model": {"name": "HistGradientBoostingClassifier", "params": {"max_iter": 2}},
-        "threshold": None, "min_auc_test": 0.0, "model_version": "test", "seed": 42,
-    }), encoding="utf-8")
+    data_path.write_text(
+        yaml.safe_dump(
+            {
+                "seed": 42,
+                "dataset": {"name": "synthetic"},
+                "target": "target",
+                "features": {"numerical": ["feature"], "categorical": []},
+                "paths": {"processed": str(processed)},
+            }
+        ),
+        encoding="utf-8",
+    )
+    model_path.write_text(
+        yaml.safe_dump(
+            {
+                "model": {"name": "HistGradientBoostingClassifier", "params": {"max_iter": 2}},
+                "threshold": None,
+                "min_auc_test": 0.0,
+                "model_version": "test",
+                "seed": 42,
+            }
+        ),
+        encoding="utf-8",
+    )
 
     try:
-        train(data_config_path=data_path, model_config_path=model_path, processed_dir=processed,
-              output_dir=tmp_path / "models")
+        train(
+            data_config_path=data_path,
+            model_config_path=model_path,
+            processed_dir=processed,
+            output_dir=tmp_path / "models",
+        )
     except ValueError as exc:
         assert "Colunas ausentes" in str(exc)
     else:

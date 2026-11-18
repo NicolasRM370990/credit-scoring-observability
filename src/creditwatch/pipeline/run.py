@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
-import shutil
 import sys
 import time
 from datetime import UTC, datetime
@@ -71,6 +70,7 @@ def _load_components() -> dict[str, Any]:
         "alerts": ("creditwatch.observability.alerts", "evaluate_alerts"),
         "metrics": ("creditwatch.observability.metrics", "record_run"),
         "mlflow": ("creditwatch.observability.mlflow_tracker", "log_run"),
+        "report": ("creditwatch.drift.reports", "generate_batch_report"),
     }
     loaded: dict[str, Any] = {}
     missing: list[str] = []
@@ -89,6 +89,34 @@ def _thresholds() -> Any:
 
     cfg = yaml.safe_load(Path("config/drift_thresholds.yaml").read_text(encoding="utf-8"))
     return DriftThresholds(**cfg)
+
+
+def _write_run_alerts(
+    alerts: list[Any],
+    run_id: str,
+    batch_id: str,
+) -> Path:
+    """Persiste somente os alertas associados à execução atual."""
+    for alert in alerts:
+        if alert.run_id != run_id or alert.batch_id != batch_id:
+            raise ValueError(
+                "Alerta não pertence à execução atual: "
+                f"run_id={alert.run_id}, batch_id={alert.batch_id}"
+            )
+
+    output_path = Path("artifacts/alerts/runs") / f"{run_id}.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    output_path.write_text(
+        json.dumps(
+            [alert.model_dump(mode="json") for alert in alerts],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    return output_path
 
 
 def run_batch(
@@ -128,9 +156,19 @@ def run_batch(
             validation_blocked=True,
             latency_s={"total": time.perf_counter() - started},
         )
-        components["alerts"](None, None, rejected_metrics)
+        alerts = components["alerts"](None, None, rejected_metrics)
+
+        alert_path = _write_run_alerts(
+            alerts,
+            context.run_id,
+            batch_id,
+        )
+
         components["metrics"](rejected_metrics)
-        components["mlflow"](rejected_metrics)
+        components["mlflow"](
+            rejected_metrics,
+            {"alerts": alert_path},
+        )
         _write_event(context.run_id, batch_id, "pipeline", "ok", "blocked run recorded")
         _write_event(context.run_id, batch_id, "alert", "ok", "validation alert emitted")
         print(
@@ -160,9 +198,23 @@ def run_batch(
             validation_blocked=True,
             latency_s={"total": time.perf_counter() - started},
         )
-        components["alerts"](validation, None, rejected_metrics)
+        alerts = components["alerts"](
+            validation,
+            None,
+            rejected_metrics,
+        )
+
+        alert_path = _write_run_alerts(
+            alerts,
+            context.run_id,
+            batch_id,
+        )
+
         components["metrics"](rejected_metrics)
-        components["mlflow"](rejected_metrics)
+        components["mlflow"](
+            rejected_metrics,
+            {"alerts": alert_path},
+        )
         _write_event(context.run_id, batch_id, "pipeline", "ok", "blocked run recorded")
         _write_event(context.run_id, batch_id, "alert", "ok", "validation alert emitted")
         return 2
@@ -174,19 +226,37 @@ def run_batch(
     scored.to_parquet(scored_path, index=False)
     _write_event(context.run_id, batch_id, "score", "ok", f"scored {len(scored)} rows")
     reference = pd.read_parquet(reference_path)
-    drift = components["drift"](reference, scored, _thresholds(), context)
+    reference_scored = score_batch(reference, model_path)
+
+    drift = components["drift"](
+        reference_scored,
+        scored,
+        _thresholds(),
+        context,
+    )
     _write_event(context.run_id, batch_id, "drift", "ok", "drift result produced")
-    if drift.report_html:
-        report_source = Path(drift.report_html)
-        if report_source.is_file():
-            report_dir = Path("artifacts/drift")
-            report_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(report_source, report_dir / f"{batch_id}.html")
-            _write_event(context.run_id, batch_id, "report", "ok", "drift report copied")
-        else:
-            _write_event(context.run_id, batch_id, "report", "warn", "report path does not exist")
+    drift = components["report"](
+        reference_scored,
+        scored,
+        drift,
+        Path("artifacts/drift"),
+    )
+    if drift.report_html and Path(drift.report_html).is_file():
+        _write_event(
+            context.run_id,
+            batch_id,
+            "report",
+            "ok",
+            "drift HTML and JSON reports generated",
+        )
     else:
-        _write_event(context.run_id, batch_id, "report", "warn", "no HTML report returned")
+        _write_event(
+            context.run_id,
+            batch_id,
+            "report",
+            "warn",
+            "drift report generation failed",
+        )
 
     elapsed = time.perf_counter() - started
     metrics = RunMetrics(
@@ -206,8 +276,29 @@ def run_batch(
     )
     alerts = components["alerts"](validation, drift, metrics)
 
+    alert_path = _write_run_alerts(
+        alerts,
+        context.run_id,
+        batch_id,
+    )
+
+    mlflow_artifacts = {
+        "alerts": alert_path,
+    }
+
+    if drift.report_html:
+        html_path = Path(drift.report_html)
+        json_path = html_path.with_suffix(".json")
+
+        if html_path.is_file():
+            mlflow_artifacts["drift"] = html_path
+
+        if json_path.is_file():
+            mlflow_artifacts["drift"] = html_path
+            mlflow_artifacts["reports"] = json_path
+
     components["metrics"](metrics)
-    components["mlflow"](metrics)
+    components["mlflow"](metrics, mlflow_artifacts)
 
     _write_event(context.run_id, batch_id, "pipeline", "ok", "run metrics recorded")
     _write_event(context.run_id, batch_id, "alert", "ok", f"{len(alerts)} alerts")
@@ -249,20 +340,36 @@ def _run_scenario(scenario: str, deterministic: bool = False) -> int:
     components = _load_components()
     paths = [_generate_invalid()] if scenario == "invalid" else _generate_batches(scenario)
     results = [run_batch(path, scenario, components, deterministic) for path in paths]
+
     if scenario == "invalid":
         return 0 if results and all(code == 2 for code in results) else 3
+
     return 0 if all(code == 0 for code in results) else 3
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Executa ou valida o pipeline CreditWatch")
-    parser.add_argument("--smoke", action="store_true", help="roda estágios com stubs locais")
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="roda estágios com stubs locais",
+    )
     parser.add_argument("--scenario", choices=(*SCENARIOS, "invalid"))
-    parser.add_argument("--batch", type=Path, help="processa lote Parquet existente")
-    parser.add_argument("--demo-video", action="store_true", help="roda cenários de demonstração")
+    parser.add_argument(
+        "--batch",
+        type=Path,
+        help="processa lote Parquet existente",
+    )
+    parser.add_argument(
+        "--demo-video",
+        action="store_true",
+        help="roda cenários de demonstração",
+    )
     args = parser.parse_args()
+
     if args.smoke:
         return run_smoke()
+
     if args.batch:
         result = run_batch(args.batch, args.scenario or "manual")
         _generate_dashboard()

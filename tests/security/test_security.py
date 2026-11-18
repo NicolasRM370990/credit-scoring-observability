@@ -1,4 +1,5 @@
 """Testes de segurança: padrões inseguros no código, segredos, privacidade e integridade."""
+
 from __future__ import annotations
 
 import ast
@@ -42,8 +43,11 @@ def _calls(tree: ast.AST):
         if isinstance(node, ast.Call):
             func = node.func
             name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
-            owner = func.value.id if isinstance(func, ast.Attribute) and isinstance(
-                func.value, ast.Name) else ""
+            owner = (
+                func.value.id
+                if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
+                else ""
+            )
             yield node, owner, name
 
 
@@ -60,7 +64,8 @@ def test_no_dangerous_builtins(path):
 def test_yaml_is_always_loaded_safely(path):
     tree = ast.parse(path.read_text(encoding="utf-8"))
     unsafe = [
-        node.lineno for node, owner, name in _calls(tree)
+        node.lineno
+        for node, owner, name in _calls(tree)
         if owner == "yaml" and name in {"load", "unsafe_load", "full_load", "load_all"}
     ]
     assert not unsafe, f"{path.name}: yaml inseguro nas linhas {unsafe}"
@@ -73,9 +78,9 @@ def test_no_shell_injection_vectors(path):
         assert not (owner == "os" and name in {"system", "popen"}), f"{path.name}:{node.lineno}"
         if owner == "subprocess":
             shell = [kw for kw in node.keywords if kw.arg == "shell"]
-            assert not any(
-                isinstance(kw.value, ast.Constant) and kw.value.value for kw in shell
-            ), f"{path.name}:{node.lineno} usa shell=True"
+            assert not any(isinstance(kw.value, ast.Constant) and kw.value.value for kw in shell), (
+                f"{path.name}:{node.lineno} usa shell=True"
+            )
             assert node.args and isinstance(node.args[0], ast.List), (
                 f"{path.name}:{node.lineno} deve passar argumentos como lista"
             )
@@ -84,8 +89,11 @@ def test_no_shell_injection_vectors(path):
 @pytest.mark.parametrize("path", SOURCE_FILES, ids=lambda p: p.name)
 def test_no_raw_pickle_deserialization(path):
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    found = [node.lineno for node, owner, name in _calls(tree)
-             if owner in {"pickle", "marshal", "dill"} and name in {"load", "loads"}]
+    found = [
+        node.lineno
+        for node, owner, name in _calls(tree)
+        if owner in {"pickle", "marshal", "dill"} and name in {"load", "loads"}
+    ]
     assert not found, f"{path.name}: desserialização sem verificação nas linhas {found}"
 
 
@@ -96,8 +104,11 @@ def test_no_secrets_in_tracked_files():
         if path.suffix in {".lock", ".parquet", ".joblib", ".png", ".jpg"} or not path.is_file():
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
-        findings += [f"{path.relative_to(ROOT)}: {name}"
-                     for name, pattern in SECRET_PATTERNS.items() if pattern.search(text)]
+        findings += [
+            f"{path.relative_to(ROOT)}: {name}"
+            for name, pattern in SECRET_PATTERNS.items()
+            if pattern.search(text)
+        ]
     assert not findings, findings
 
 
@@ -105,8 +116,11 @@ def test_sensitive_files_are_not_tracked():
     tracked = {path.relative_to(ROOT).as_posix() for path in _tracked_files()}
     sensitive = re.compile(r"(^|/)(\.env(\..*)?|kaggle\.json|.*\.pem|.*\.key|.*\.joblib)$")
     assert not [name for name in tracked if sensitive.search(name)]
-    assert not [name for name in tracked
-                if name.startswith("data/") and not name.lower().endswith(("readme.md", ".gitkeep"))]
+    assert not [
+        name
+        for name in tracked
+        if name.startswith("data/") and not name.lower().endswith(("readme.md", ".gitkeep"))
+    ]
 
 
 def test_gitignore_protects_secrets_and_data():

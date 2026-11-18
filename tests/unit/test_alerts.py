@@ -88,11 +88,11 @@ def drift_result():
             mean_score_cur=0.5,
         ),
         thresholds=DriftThresholds(
-        psi_warn=0.015639,
-        psi_critical=0.017247,
-        ks_stat_min=0.042700,
-        drift_share_alert=0.30,
-      ),
+            psi_warn=0.015639,
+            psi_critical=0.017247,
+            ks_stat_min=0.042700,
+            drift_share_alert=0.30,
+        ),
     )
 
 

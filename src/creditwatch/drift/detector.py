@@ -80,14 +80,11 @@ def _validate_data(
             values = dataframe[column].to_numpy(dtype=float)
 
             if not np.isfinite(values).any():
-                raise ValueError(
-                    f"Nenhum valor finito disponível na coluna {column} ({label})"
-                )
+                raise ValueError(f"Nenhum valor finito disponível na coluna {column} ({label})")
 
             if np.isinf(values).any():
-                raise ValueError(
-                    f"Valores infinitos na coluna {column} ({label})"
-                )
+                raise ValueError(f"Valores infinitos na coluna {column} ({label})")
+
 
 def _classify_severity(
     psi_value: float,

@@ -358,8 +358,8 @@ S0 tem folga: usar para ler a documentação das bibliotecas. **S1 e S2 são os 
 | E2-11 | DEV · P0 | P4 | S2 | E1-10, E0-05 | 4 | MLflow: experimento de treino e de monitoramento (params, métricas, artefatos HTML/JSON/alerts). `make mlflow-ui` | `observability/mlflow_tracker.py` | Após `make demo`, a UI lista **um run por lote** com métricas e artefatos. Teste com tracking URI temporário | UI na demo: pré-popular |
 | E2-12 | INT · P0 | P1 | S2 | E1-08, E2-04, E2-06, E2-10, E2-11 | 5 | Plugar módulos reais no `run.py`. CLI `--batch` e `--scenario`. `make demo` roda: controle, drift moderado, drift severo, inválido; gera dashboard e `reports/` | `pipeline/run.py`, `Makefile` | `make demo` conclui com exit codes corretos e 1 linha em `run_history` por lote | Integração tardia → smoke com stubs desde S1 |
 | E2-13 | TEST · P0 | P2 | S2 | E2-12 | 4 | Testes de integração e e2e: (a) controle, (b) drift, (c) inválido, (d) falha forçada de estágio, (e) re-execução idempotente | `tests/integration/test_pipeline_e2e.py` | Todos verdes. Asserts nos artefatos: log, alerts, run_history, HTML | — |
-| E2-14 | DEV · P1 | P4 | S2–S3 | E2-06, E2-10, E1-10 | 6 | Dashboard HTML estático (Jinja2 + Plotly): status e duração das execuções, linhas processadas, lotes bloqueados, PSI e `drift_share` por lote, alertas | `observability/dashboard.py` | `artifacts/dashboard/index.html` abre offline e mostra os cenários. Print em `docs/evidence/` | MLflow já cobre o mínimo |
-| E2-15 | DOC · P0 | P4 | S1 | E0-06 | 2 | Catálogo de métricas: nome, definição, unidade, fonte, alerta associado | `docs/observability_metrics.md` | Teste compara os nomes do catálogo com os campos de `run_history`/MLflow | — |
+| E2-14 | DEV · P1 | P4 | S2–S3 | E2-06, E2-10, E1-10 | 6 | Dashboard HTML estático (Jinja2 + Plotly): status e duração das execuções, linhas processadas, lotes bloqueados, PSI e `drift_share` por lote, alertas | `observability/dashboard.py` | **CONCLUÍDO** — `artifacts/dashboard/index.html` abre offline e apresenta os cenários. Evidência: `docs/evidence/e2-14-dashboard.png`. Três testes unitários aprovados. | MLflow já cobre o mínimo |
+| E2-15 | DOC · P0 | P4 | S1 | E0-06 | 2 | Catálogo de métricas: nome, definição, unidade, fonte, alerta associado | `docs/observability_metrics.md` | **CONCLUÍDO** — catálogo validado por testes de consistência com os campos de `run_history`, métricas MLflow e regras de alerta. Cinco testes específicos aprovados. | — |
 | E2-16 | INT · P2 | P2 | S2 | E2-12 | 2 | Dockerfile + `make docker-demo` | `Dockerfile` | Container executa `make demo` | Tempo de build |
 
 ### 8.5 Etapa 4: Governança, LGPD e causalidade (Sprints 0 a 3)
@@ -531,20 +531,34 @@ Os números acima são **exemplos de formato**, não resultados.
 
 ```python
 # contracts/validate.py
-def validate_batch(df: pd.DataFrame, batch_id: str, contract_version: str = "1.0.0") -> ValidationResult: ...
+def validate_batch(
+    df: pd.DataFrame, batch_id: str, contract_version: str = "1.0.0"
+) -> ValidationResult: ...
+
+
 # contracts/ingestion.py
 class BatchRejected(Exception): ...
-def ingest_batch(path: Path, ctx: RunContext) -> pd.DataFrame: ...      # move para quarentena e levanta BatchRejected
+
+
+def ingest_batch(
+    path: Path, ctx: RunContext
+) -> pd.DataFrame: ...  # move para quarentena e levanta BatchRejected
 # model/predict.py
 def score_batch(df: pd.DataFrame, model_path: Path) -> pd.DataFrame: ...
 # simulation/generate.py
-def generate_scenario(pool: pd.DataFrame, scenario: str, config_path: Path, out_dir: Path) -> list[Path]: ...
+def generate_scenario(
+    pool: pd.DataFrame, scenario: str, config_path: Path, out_dir: Path
+) -> list[Path]: ...
 # drift/detector.py
-def detect_drift(reference: pd.DataFrame, current: pd.DataFrame, cfg: DriftConfig, ctx: RunContext) -> DriftResult: ...
+def detect_drift(
+    reference: pd.DataFrame, current: pd.DataFrame, cfg: DriftConfig, ctx: RunContext
+) -> DriftResult: ...
 # observability/
 def get_logger(stage: str, ctx: RunContext) -> logging.Logger: ...
 def record_run(metrics: RunMetrics) -> None: ...
-def evaluate_alerts(validation: ValidationResult | None, drift: DriftResult | None, metrics: RunMetrics) -> list[Alert]: ...
+def evaluate_alerts(
+    validation: ValidationResult | None, drift: DriftResult | None, metrics: RunMetrics
+) -> list[Alert]: ...
 ```
 
 ### 10.8 Locais de saída

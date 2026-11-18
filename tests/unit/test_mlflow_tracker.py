@@ -1,9 +1,11 @@
 """Testes unitários do registro de métricas no MLflow."""
 
-import mlflow
+from pathlib import Path
+
 import pytest
 from mlflow.tracking import MlflowClient
 
+import mlflow
 from creditwatch.interfaces import RunMetrics
 from creditwatch.observability import mlflow_tracker
 
@@ -125,3 +127,51 @@ def test_log_run_does_not_modify_metrics(metrics, mlflow_db):
     mlflow_tracker.log_run(metrics)
 
     assert metrics.model_dump(mode="json") == original
+
+
+def test_log_run_persists_artifacts(metrics, mlflow_db, tmp_path):
+    html_file = tmp_path / "batch_test.html"
+    json_file = tmp_path / "batch_test.json"
+
+    html_file.write_text("<html>drift report</html>", encoding="utf-8")
+    json_file.write_text('{"batch_id": "batch_test"}', encoding="utf-8")
+
+    mlflow_tracker.log_run(
+        metrics,
+        artifacts={
+            "drift": html_file,
+            "reports": json_file,
+        },
+    )
+
+    client = MlflowClient(tracking_uri=mlflow_db)
+    experiment = client.get_experiment_by_name("credit-scoring-monitoring-test")
+    runs = client.search_runs([experiment.experiment_id])
+
+    assert len(runs) == 1
+
+    run_id = runs[0].info.run_id
+
+    drift_artifacts = client.list_artifacts(run_id, "drift")
+    report_artifacts = client.list_artifacts(run_id, "reports")
+
+    assert [item.path for item in drift_artifacts] == ["drift/batch_test.html"]
+    assert [item.path for item in report_artifacts] == ["reports/batch_test.json"]
+
+    downloaded_html = client.download_artifacts(
+        run_id,
+        "drift/batch_test.html",
+        str(tmp_path / "downloaded"),
+    )
+
+    assert Path(downloaded_html).read_text(encoding="utf-8") == ("<html>drift report</html>")
+
+
+def test_log_run_rejects_missing_artifact(metrics, mlflow_db, tmp_path):
+    missing_file = tmp_path / "missing.html"
+
+    with pytest.raises(FileNotFoundError, match="Artifact não encontrado"):
+        mlflow_tracker.log_run(
+            metrics,
+            artifacts={"drift": missing_file},
+        )

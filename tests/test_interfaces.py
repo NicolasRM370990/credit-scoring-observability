@@ -19,8 +19,12 @@ def test_validation_result_json_roundtrip():
         n_rows_failed=1,
         checks=[
             ValidationCheck(
-                rule_id="R01_AGE_RANGE", severity="BLOCK", column="age",
-                passed=False, n_failures=1, failure_rate=0.1,
+                rule_id="R01_AGE_RANGE",
+                severity="BLOCK",
+                column="age",
+                passed=False,
+                n_failures=1,
+                failure_rate=0.1,
                 examples=[{"row_index": 3}],
             )
         ],
