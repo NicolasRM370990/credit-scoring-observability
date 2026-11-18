@@ -96,7 +96,7 @@ def test_generate_dashboard_creates_offline_html(tmp_path):
 
     # O código JavaScript do Plotly deve estar incorporado no HTML.
     assert "Plotly.newPlot" in html
-    assert "cdn.plot.ly" not in html
+    assert "<script src=" not in html
 
 
 def test_generate_dashboard_calculates_execution_and_alert_totals(

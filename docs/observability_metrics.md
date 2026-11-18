@@ -90,12 +90,12 @@ As regras são definidas em `config/alerts.yaml` e avaliadas pelo componente de 
 
 | ID | Nome | Condição | Métrica | Severidade |
 |---|---|---|---|---|
-| A01 | VALIDATION_BLOCKED | Lote bloqueado pela validação | `validation_blocked` | CRITICAL |
-| A02 | DATASET_DRIFT | `drift_share >= 0.30` | `drift_share` | WARNING |
-| A03 | FEATURE_PSI | PSI de uma feature `>= 0.017247` | `psi.<feature>` | CRITICAL |
-| A04 | LATENCY | Latência total `>= 120` segundos | `latency_total_s` | WARNING |
-| A05 | VOLUME | Quantidade de registros `< 1000` ou `> 10000` | `rows_in` | WARNING |
-| A06 | PREDICTION_DRIFT | `score_psi >= 0.10` | `score_psi` | WARNING |
+| `A01_VALIDATION_BLOCKED` | VALIDATION_BLOCKED | Lote bloqueado pela validação | `validation_blocked` | CRITICAL |
+| `A02_DATASET_DRIFT` | DATASET_DRIFT | `drift_share >= 0.30` | `drift_share` | WARNING |
+| `A03_FEATURE_PSI` | FEATURE_PSI | PSI de uma feature `>= 0.017247` | `psi.<feature>` | CRITICAL |
+| `A04_LATENCY` | LATENCY | Latência total `>= 120` segundos | `latency_total_s` | WARNING |
+| `A05_VOLUME` | VOLUME | Quantidade de registros `< 1000` ou `> 10000` | `rows_in` | WARNING |
+| `A06_PREDICTION_DRIFT` | PREDICTION_DRIFT | `score_psi >= 0.10` | `score_psi` | WARNING |
 
 ### 5.1. Detalhamento das regras
 

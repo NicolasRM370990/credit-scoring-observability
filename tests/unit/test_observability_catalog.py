@@ -1,6 +1,7 @@
 """Testes de consistência do catálogo de métricas."""
 
 import re
+from decimal import Decimal
 from pathlib import Path
 
 import yaml
@@ -101,9 +102,9 @@ def test_catalog_alert_thresholds_match_configuration():
     }
 
     for rule_id, expected_value in expected_thresholds.items():
-        configured_value = str(config["rules"][rule_id]["threshold"])
+        configured_value = Decimal(str(config["rules"][rule_id]["threshold"]))
 
-        assert configured_value == expected_value
+        assert configured_value == Decimal(expected_value)
         assert expected_value in catalog, (
             f"Threshold de {rule_id} não documentado: {expected_value}"
         )
@@ -122,7 +123,10 @@ def test_catalog_documents_alert_severities():
     for rule_id, rule in config["rules"].items():
         severity = rule["severity"]
 
-        pattern = rf"\|\s*{re.escape(rule_id)}\s*\|.*?\|\s*{severity}\s*\|"
+        pattern = (
+            rf"\|\s*`?{re.escape(rule_id)}`?\s*\|"
+            rf".*?\|\s*{severity}\s*\|"
+        )
 
         assert re.search(pattern, catalog), (
             f"Severidade {severity} da regra {rule_id} não encontrada na tabela do catálogo"
