@@ -236,6 +236,15 @@ def _generate_invalid() -> Path:
     return out
 
 
+def _generate_dashboard() -> Path:
+    """Gera o dashboard estático com o histórico e os alertas disponíveis."""
+    from creditwatch.observability.dashboard import generate_dashboard
+
+    output_path = generate_dashboard()
+    print(f"Dashboard gerado: {output_path}")
+    return output_path
+
+
 def _run_scenario(scenario: str, deterministic: bool = False) -> int:
     components = _load_components()
     paths = [_generate_invalid()] if scenario == "invalid" else _generate_batches(scenario)
@@ -255,15 +264,24 @@ def main() -> int:
     if args.smoke:
         return run_smoke()
     if args.batch:
-        return run_batch(args.batch, args.scenario or "manual")
+        result = run_batch(args.batch, args.scenario or "manual")
+        _generate_dashboard()
+        return result
+
     if args.demo_video:
-        return (
+        result = (
             0
             if all(_run_scenario(name, deterministic=True) == 0 for name in (*SCENARIOS, "invalid"))
             else 3
         )
+        _generate_dashboard()
+        return result
+
     if args.scenario:
-        return _run_scenario(args.scenario)
+        result = _run_scenario(args.scenario)
+        _generate_dashboard()
+        return result
+
     parser.error("informe --smoke, --batch, --scenario ou --demo-video")
     return 2
 
