@@ -40,7 +40,7 @@ tests/             # unit, smoke, functional, regression, security, pentest, per
 
 | Seção | Responsável | Status |
 |---|---|---|
-| 1. Problema e objetivo | P4 | a fazer |
+| 1. Problema e objetivo | P4 | [abaixo](#1-problema-e-objetivo) |
 | 2. Arquitetura | P1 | [documentada](docs/architecture.md) |
 | 3. Dataset e limitações (ver [ADR-001](docs/decisions/ADR-001-dataset.md)) | P1 | documentado; sujeito aos termos Kaggle |
 | 4. Instalação e 5. Execução | P2 / P1 | comandos de preparo, treino e smoke acima |
@@ -48,11 +48,11 @@ tests/             # unit, smoke, functional, regression, security, pentest, per
 | 7. Modelo baseline | P1 | métricas em `models/baseline_v1.json` |
 | Análise descritiva por faixa etária | P1 | `make bias` gera `docs/evidence/bias_report.md` |
 | 8. Simulação de drift e 9. Resultados estatísticos | P3 | a fazer |
-| 10. Observabilidade e 11. Evidências | P4 | a fazer |
-| 12. Governança e LGPD | P4 | a fazer |
-| 13. Análise causal | P4 + P3 | a fazer |
+| 10. Observabilidade e 11. Evidências | P4 | [abaixo](#10-observabilidade) |
+| 12. Governança e LGPD | P4 | [abaixo](#12-governança-e-lgpd) |
+| 13. Análise causal | P4 + P3 | [abaixo](#13-análise-causal) |
 | 14. Testes e 15. Limitações | P2 / P3 | testes [resumidos abaixo](#testes); limitações a fazer |
-| 16. Integrantes e link do vídeo | P4 | a fazer |
+| 16. Integrantes e link do vídeo | P4 | roteiro e vídeo em `docs/video/`; nomes abaixo |
 
 ## Testes
 
@@ -94,3 +94,47 @@ Todas as suítes usam dados sintéticos e rodam sem o CSV do Kaggle. Cada tipo t
 | P4 | Observabilidade, Governança e Docs |
 
 <!-- Trocar P1 a P4 pelos nomes -->
+
+## 1. Problema e objetivo
+
+O modelo de credit scoring precisa continuar confiável depois do treino. Esta camada observa cada lote de produção: recusa o que viola o contrato de dados, mede drift de features e de score, registra métricas e alertas, e deixa trilha auditável sem gravar valores de linha (LGPD).
+
+O objetivo da entrega P4 é tornar essa execução observável: log JSON por estágio, catálogo de métricas, dashboard HTML e o inventário de dados. Contratos, drift, alertas, MLflow e o vídeo já estão na `main` e foram preservados.
+
+## 10. Observabilidade
+
+| Peça | Onde | Como ver |
+|---|---|---|
+| Log por estágio | `src/creditwatch/observability/logging.py` | `artifacts/logs/pipeline.jsonl` |
+| Métricas por lote | `observability/metrics.py` (`record_run`) | `artifacts/metrics/run_history.jsonl` |
+| Alertas A01–A06 | `observability/alerts.py` | `artifacts/alerts/alerts.jsonl` e `config/alerts.yaml` |
+| MLflow | `observability/mlflow_tracker.py` | `make mlflow-ui` (SQLite `mlflow/creditwatch.db`) |
+| Dashboard | `observability/dashboard.py` | `make dashboard` → `artifacts/dashboard/index.html` |
+| Catálogo | `docs/observability_metrics.md` | nomes, unidades e regra de alerta de cada métrica |
+
+`make alerts-summary` imprime só as contagens dos JSONL já gravados. O dashboard lê esses arquivos; não regrava métricas nem alertas.
+
+## 11. Evidências
+
+As evidências de drift, calibração e viés por faixa etária já estão em `docs/evidence/` (P1/P3). O roteiro e o vídeo da apresentação estão em `docs/video/`. O dashboard e os JSONL de execução ficam fora do Git (`artifacts/`).
+
+## 12. Governança e LGPD
+
+O inventário, a classificação das colunas, a retenção proposta e o controle de acesso estão em [`docs/governance/data_inventory.md`](docs/governance/data_inventory.md).
+
+O que o código garante hoje:
+
+- `ValidationResult` só devolve `row_index`, nunca o valor da célula.
+- `sanitize_extra` redige nomes de coluna do dataset e omite DataFrame/Series no log.
+- Métricas, alertas e o dashboard guardam agregados por lote (`rows_in`, PSI, `score_mean`), não a linha do cliente.
+- Dados brutos, lotes e predições estão no `.gitignore`.
+
+Isso não é parecer jurídico. Prazos de retenção e papéis de acesso são proposta para validar com o negócio.
+
+## 13. Análise causal
+
+O monitoramento responde se a distribuição mudou (`drift_share`, PSI, KS, `score_psi`). Não atribui causa sozinho. A leitura combinada, já produzida pelo grupo, está em `docs/evidence/` e `docs/thresholds.md`: comparar o relatório de drift com o desempenho no lote rotulado (`evaluate-labeled`) e com o recorte por faixa etária (`make bias`). Um PSI alto com AUC estável sugere mudança de mix; queda de desempenho com PSI baixo sugere concept drift. A decisão de retreinar continua humana.
+
+## 16. Integrantes e vídeo
+
+A tabela de papéis está em [Integrantes](#integrantes). Roteiro, apresentação e vídeo já versionados pelo grupo: `docs/video/roteiro_star.md`, `docs/video/creditwatch_apresentacao.pptx` e `docs/video/creditwatch_apresentacao.mp4`. Os nomes ainda precisam substituir os papéis P1–P4.
