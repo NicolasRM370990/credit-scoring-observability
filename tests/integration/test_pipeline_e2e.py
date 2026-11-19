@@ -14,9 +14,23 @@ from creditwatch.observability import metrics as metrics_module
 from creditwatch.observability import mlflow_tracker
 from creditwatch.pipeline import run as pipeline
 
-pytestmark = pytest.mark.functional
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_REQUIRED_ARTIFACTS = (
+    PROJECT_ROOT / "data" / "processed" / "production_pool.parquet",
+    PROJECT_ROOT / "data" / "processed" / "reference_train.parquet",
+    PROJECT_ROOT / "models" / "baseline_v1.joblib",
+    PROJECT_ROOT / "models" / "baseline_v1.json",
+)
+_MISSING_ARTIFACTS = [path for path in _REQUIRED_ARTIFACTS if not path.is_file()]
+
+pytestmark = [
+    pytest.mark.functional,
+    pytest.mark.skipif(
+        bool(_MISSING_ARTIFACTS),
+        reason="artefatos locais ausentes (não versionados): "
+        + ", ".join(path.relative_to(PROJECT_ROOT).as_posix() for path in _MISSING_ARTIFACTS),
+    ),
+]
 
 
 @pytest.fixture
