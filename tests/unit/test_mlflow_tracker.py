@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
+import mlflow
 import pytest
 from mlflow.tracking import MlflowClient
 
-import mlflow
 from creditwatch.interfaces import RunMetrics
 from creditwatch.observability import mlflow_tracker
 

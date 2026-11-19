@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import mlflow
 from mlflow.tracking import MlflowClient
 
-import mlflow
 from creditwatch.interfaces import RunMetrics
 
 TRACKING_URI = "sqlite:///mlflow/creditwatch.db"
