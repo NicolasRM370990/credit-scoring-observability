@@ -519,9 +519,9 @@ execuções futuras terão os mesmos resultados.
 
 Adicione aqui os materiais finais de apresentação:
 
--   Apresentação: `\docs\video\creditwatch_apresentacao.pptx`
--   Vídeo: `\docs\video\creditwatch_apresentacao.mp4`
--   Roteiro: `\docs\video\roteiro_star.md`
+-   Apresentação: [docs/video/creditwatch_apresentacao.pptx](docs/video/creditwatch_apresentacao.pptx)
+-   Vídeo: [docs/video/creditwatch_apresentacao.mp4](docs/video/creditwatch_apresentacao.mp4)
+-   Roteiro: [docs/video/roteiro_star.md](docs/video/roteiro_star.md)
 
 ------------------------------------------------------------------------
 
