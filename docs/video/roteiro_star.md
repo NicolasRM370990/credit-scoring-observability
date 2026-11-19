@@ -3,13 +3,13 @@
 Narração para gravar sobre a apresentação `docs/video/creditwatch_apresentacao.pptx`.
 Uma pessoa narra. Se forem duas, a primeira fica com Situação, Tarefa, arquitetura, modelo e contrato. A segunda fica com simulação, drift, governança e fechamento.
 
-Fale olhando para a câmera ou para a tela, em tom de quem explica para a diretoria. Não leia os RMs número a número. Não afirme que o MLflow ou o motor de alertas já fecham o ciclo: estão especificados e ainda não implementados.
+Fale olhando para a câmera ou para a tela, em tom de quem explica para a diretoria. Não leia os RMs número a número. Alertas, MLflow e quarentena já estão no código. Não diga que o PSI e o Evidently apontaram as mesmas colunas.
 
 ## Como gravar
 
 - Apresentação em tela cheia, fonte do terminal em 18 ou mais, se abrir o terminal.
 - Plano A: só os slides, na ordem abaixo. Cabe em 4:30.
-- Plano B, se sobrar 20 segundos no ensaio: no bloco do contrato, mostrar um lote com `age = 17` bloqueado por `R01_AGE_RANGE`. Não rodar `pytest` ao vivo. A suíte leva cerca de 45 segundos.
+- Plano B, se sobrar 20 segundos no ensaio: no bloco do contrato, mostrar um lote com `age = 17` bloqueado por `R01_AGE_RANGE` e movido para `data/quarantine`. Não rodar `pytest` ao vivo. A suíte leva cerca de 3 minutos e 30 segundos.
 - Se passar de 4:40 no ensaio, cortar as frases marcadas com *(corte)*.
 - Conferir no take final: o vídeo tem no máximo 5:00, o áudio não estoura e o gráfico de PSI continua legível.
 
@@ -47,7 +47,7 @@ A tarefa foi sustentar esse modelo em três pontos. Barrar dado inválido antes 
 
 ### 1:02 — Slide 4 — Ação, arquitetura
 
-Separamos quem treina o modelo de quem simula a produção. O lote entra pelo contrato. Se o contrato bloqueia, o scoring não roda. Se passa, comparamos o lote pontuado com a referência.
+Separamos quem treina o modelo de quem simula a produção. O lote entra pelo contrato. Se o contrato bloqueia, o scoring não roda. Se passa, comparamos o lote pontuado com a referência. Cada estágio grava um log sem valor de linha. Alertas, MLflow e um dashboard HTML fecham a execução.
 
 ### 1:24 — Slide 5 — Ação, modelo
 
@@ -59,34 +59,39 @@ Cinco regras bloqueiam o lote inteiro: idade, renda, duplicata, schema e número
 
 ### 2:16 — Slide 7 — Ação, simulação
 
-São três cenários, com a mesma semente. Um não muda nada. O moderado mexe em renda e utilização. O severo acrescenta debt ratio, com intensidade crescente. Idade e dependentes ficam parados, de propósito.
+São três cenários de dado, com a mesma semente. Um não muda nada. O moderado mexe em renda e utilização. O severo acrescenta debt ratio, com intensidade crescente. Idade e dependentes ficam parados, de propósito. O quarto cenário muda só o rótulo.
 
 ### 2:38 — Slide 8 — Resultado, drift
 
-No PSI, a utilização de crédito passou muito do limite crítico de 0,25. Idade, dependentes e atrasos ficaram perto de zero. O Evidently usa outra distância e marcou renda e score: 2 de 11 colunas, 18%. Como o limiar dele é 50%, o dataset inteiro não foi declarado em drift. Os dois métodos não apontam a mesma coluna. Por isso os dois ficam no monitoramento.
+O gráfico usa os limiares calibrados: aviso 0,016 e crítico 0,017. No cenário severo, renda e debt ratio sobem desde o primeiro lote. A utilização dispara no último, acima de 1,2. Idade e dependentes ficam no zero. O Evidently, com outra distância, não aponta as mesmas colunas.
 
 ### 3:22 — Slide 9 — Resultado, governança
 
-O CSV não entra no Git. O identificador do cliente é um código gerado. Entre 18 e 29 anos, a aprovação foi 87%. Acima de 60, 97%. A diferença de recall entre as faixas é 0,27. Isso descreve o recorte. Não prova discriminação, e a base não tem sexo nem raça.
+O CSV, o parquet e o modelo não entram no Git. O identificador é um pseudônimo, não uma anonimização. O log descarta valor de linha. Entre 18 e 29 anos, a aprovação foi 87%. Acima de 60, 97%. A diferença de recall entre as faixas é 0,27. Isso descreve o recorte. Não prova discriminação, e a base não tem sexo nem raça.
 
 ### 3:48 — Slide 10 — Resultado, limites
 
-Trezentos e trinta e oito testes passaram. Drift de dado, porém, não é queda de desempenho: sem o rótulo atrasado, concept drift fica fora da conta. Alertas e MLflow estão especificados. Ainda não fecham o ciclo.
+Quatrocentos e trinta e seis testes passaram nesta pasta. Cinco de ponta a ponta não iniciaram: faltam o parquet processado e o arquivo do modelo. No concept drift sintético, o detector de dado não acende e o ROC-AUC cai de 0,86 para cerca de 0,32.
 
 ### 4:12 — Slide 11 — Fechamento
 
-O que já protege a decisão é a porta do contrato e a comparação com a referência. O próximo passo é transformar a discordância entre PSI e Evidently em alerta do lote.
+O contrato manda o lote inválido para a quarentena. O alerta de PSI usa o limite calibrado. O log, o dashboard HTML e o MLflow mostram a execução sem valor de cliente. PSI e Evidently continuam lado a lado, porque não contam a mesma história.
 
 ## O que não dizer
 
-- Não dizer que o MLflow já lista um run por lote.
-- Não dizer que o lote inválido já cai sozinho na quarentena. O contrato bloqueia; a ingestão com quarentena ainda não está no código.
 - Não dizer que o Evidently e o PSI apontaram as mesmas variáveis. O gráfico de PSI destaca `revolving_utilization`. O HTML do Evidently marca `monthly_income` e `score`.
+- Não dizer que a utilização é a única variável acima do limite. No gráfico atual, renda e debt ratio sobem antes; a utilização dispara no último lote.
 - Não tratar a diferença por idade como prova de viés ilegal.
+- Não dizer que o `customer_id` anonimiza o cliente. Ele é um pseudônimo.
+- Não dizer que os cinco testes de ponta a ponta falharam por defeito de código. Nesta pasta eles não iniciaram porque o parquet e o `.joblib` não estão versionados.
 
 ## Evidências usadas
 
 - `models/baseline_v1.json`: ROC-AUC de teste 0,860, PR-AUC 0,386, KS 0,565, threshold 0,238, dummy 0,50.
 - `docs/evidence/bias_report.md`: aprovação 86,6% (18–29) e 97,3% (60+); diferença de recall 0,271.
 - `docs/evidence/e2-06-psi-evolution.png` e `docs/evidence/e2-06-drift-report.png`.
-- Suíte local de 16/11/2026: 338 aprovados, 1 pulado por falta do CSV bruto.
+- `config/drift_thresholds.yaml` (17/11/2026): PSI de aviso 0,0156 e crítico 0,0172; KS 0,0427.
+- `docs/evidence/perf_vs_drift.md`: no concept drift sintético, drift de dado não detectado e ROC-AUC perto de 0,32.
+- `docs/governance/data_inventory.md`: inventário LGPD; `customer_id` é pseudônimo.
+- `docs/evidence/e2-14-dashboard.png`: dashboard HTML com execuções, bloqueios, PSI e alertas.
+- Suíte local de 19/11/2026: 436 aprovados, 1 pulado, 5 erros de preparação por falta de `data/processed/*.parquet` e `models/baseline_v1.joblib`.
